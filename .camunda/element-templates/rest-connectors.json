@@ -3,7 +3,7 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST GET",
     "id": "com.example.operaton.rest.restGet",
-    "version": 5,
+    "version": 6,
     "description": "Fetch data: request params built from the pasted OpenAPI parameters; 4xx -> BPMN error HTTP_<status>.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
@@ -27,6 +27,10 @@
       {
         "id": "engine",
         "label": "Execution"
+      },
+      {
+        "id": "mock",
+        "label": "Test mode (mock data)"
       }
     ],
     "entriesVisible": false,
@@ -158,6 +162,48 @@
         }
       },
       {
+        "label": "Mock enabled",
+        "description": "Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockEnabled"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*(true|false)\\s*$|^\\s*\\$\\{[\\s\\S]*\\}\\s*$",
+            "message": "true, false or an expression ${...}"
+          }
+        }
+      },
+      {
+        "label": "Mock status",
+        "description": "HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -> BPMN error HTTP_404.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockStatus"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*[1-5][0-9][0-9]\\s*$",
+            "message": "An HTTP status, e.g. 200"
+          }
+        }
+      },
+      {
+        "label": "Mock response",
+        "description": "Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.",
+        "type": "Text",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockResponse"
+        }
+      },
+      {
         "label": "Async before (enables job retries on 5xx / timeouts)",
         "type": "Boolean",
         "value": false,
@@ -173,7 +219,7 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST PUT",
     "id": "com.example.operaton.rest.restPut",
-    "version": 5,
+    "version": 6,
     "description": "Replace a resource: body built from merged sources + pasted OpenAPI schema.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
@@ -197,6 +243,10 @@
       {
         "id": "engine",
         "label": "Execution"
+      },
+      {
+        "id": "mock",
+        "label": "Test mode (mock data)"
       }
     ],
     "entriesVisible": false,
@@ -344,6 +394,48 @@
         }
       },
       {
+        "label": "Mock enabled",
+        "description": "Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockEnabled"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*(true|false)\\s*$|^\\s*\\$\\{[\\s\\S]*\\}\\s*$",
+            "message": "true, false or an expression ${...}"
+          }
+        }
+      },
+      {
+        "label": "Mock status",
+        "description": "HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -> BPMN error HTTP_404.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockStatus"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*[1-5][0-9][0-9]\\s*$",
+            "message": "An HTTP status, e.g. 200"
+          }
+        }
+      },
+      {
+        "label": "Mock response",
+        "description": "Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.",
+        "type": "Text",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockResponse"
+        }
+      },
+      {
         "label": "Async before (enables job retries on 5xx / timeouts)",
         "type": "Boolean",
         "value": false,
@@ -359,7 +451,7 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST UPDATE (PATCH)",
     "id": "com.example.operaton.rest.restUpdate",
-    "version": 5,
+    "version": 6,
     "description": "Partially update a resource: body built from merged sources + pasted OpenAPI schema.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
@@ -383,6 +475,10 @@
       {
         "id": "engine",
         "label": "Execution"
+      },
+      {
+        "id": "mock",
+        "label": "Test mode (mock data)"
       }
     ],
     "entriesVisible": false,
@@ -530,6 +626,48 @@
         }
       },
       {
+        "label": "Mock enabled",
+        "description": "Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockEnabled"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*(true|false)\\s*$|^\\s*\\$\\{[\\s\\S]*\\}\\s*$",
+            "message": "true, false or an expression ${...}"
+          }
+        }
+      },
+      {
+        "label": "Mock status",
+        "description": "HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -> BPMN error HTTP_404.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockStatus"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*[1-5][0-9][0-9]\\s*$",
+            "message": "An HTTP status, e.g. 200"
+          }
+        }
+      },
+      {
+        "label": "Mock response",
+        "description": "Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.",
+        "type": "Text",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockResponse"
+        }
+      },
+      {
         "label": "Async before (enables job retries on 5xx / timeouts)",
         "type": "Boolean",
         "value": false,
@@ -545,7 +683,7 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST POST",
     "id": "com.example.operaton.rest.restPost",
-    "version": 5,
+    "version": 6,
     "description": "Create a resource: body built from merged sources + pasted OpenAPI schema.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
@@ -569,6 +707,10 @@
       {
         "id": "engine",
         "label": "Execution"
+      },
+      {
+        "id": "mock",
+        "label": "Test mode (mock data)"
       }
     ],
     "entriesVisible": false,
@@ -716,6 +858,48 @@
         }
       },
       {
+        "label": "Mock enabled",
+        "description": "Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockEnabled"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*(true|false)\\s*$|^\\s*\\$\\{[\\s\\S]*\\}\\s*$",
+            "message": "true, false or an expression ${...}"
+          }
+        }
+      },
+      {
+        "label": "Mock status",
+        "description": "HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -> BPMN error HTTP_404.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockStatus"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*[1-5][0-9][0-9]\\s*$",
+            "message": "An HTTP status, e.g. 200"
+          }
+        }
+      },
+      {
+        "label": "Mock response",
+        "description": "Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.",
+        "type": "Text",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockResponse"
+        }
+      },
+      {
         "label": "Async before (enables job retries on 5xx / timeouts)",
         "type": "Boolean",
         "value": false,
@@ -731,7 +915,7 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST DELETE",
     "id": "com.example.operaton.rest.restDelete",
-    "version": 5,
+    "version": 6,
     "description": "Delete a resource: path / query params built from the pasted OpenAPI parameters.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
@@ -755,6 +939,10 @@
       {
         "id": "engine",
         "label": "Execution"
+      },
+      {
+        "id": "mock",
+        "label": "Test mode (mock data)"
       }
     ],
     "entriesVisible": false,
@@ -899,6 +1087,48 @@
         "binding": {
           "type": "camunda:inputParameter",
           "name": "technicalErrors"
+        }
+      },
+      {
+        "label": "Mock enabled",
+        "description": "Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockEnabled"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*(true|false)\\s*$|^\\s*\\$\\{[\\s\\S]*\\}\\s*$",
+            "message": "true, false or an expression ${...}"
+          }
+        }
+      },
+      {
+        "label": "Mock status",
+        "description": "HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -> BPMN error HTTP_404.",
+        "type": "String",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockStatus"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*[1-5][0-9][0-9]\\s*$",
+            "message": "An HTTP status, e.g. 200"
+          }
+        }
+      },
+      {
+        "label": "Mock response",
+        "description": "Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.",
+        "type": "Text",
+        "group": "mock",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "mockResponse"
         }
       },
       {

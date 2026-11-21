@@ -1,5 +1,6 @@
 package com.example.operaton.connector.engine.input;
 
+import com.example.operaton.connector.core.api.MockResponse;
 import com.example.operaton.connector.core.api.RestCall;
 import com.example.operaton.connector.core.error.RestConnectorException;
 import com.example.operaton.connector.core.api.TechnicalErrors;
@@ -29,6 +30,9 @@ public class TaskInputs {
   public static final String TECHNICAL_ERRORS = "technicalErrors";
   public static final String RESULT_VARIABLE = "resultVariable";
   public static final String STATUS_VARIABLE = "statusVariable";
+  public static final String MOCK_ENABLED = "mockEnabled";
+  public static final String MOCK_STATUS = "mockStatus";
+  public static final String MOCK_RESPONSE = "mockResponse";
 
   private final TokenProvider tokens;
   private final ObjectMapper mapper = new ObjectMapper();
@@ -52,7 +56,41 @@ public class TaskInputs {
     }
     return new RestCall(method, required(execution, URL), sources(execution),
         blankToNull(optional(execution, PARAMS_SCHEMA)), blankToNull(optional(execution, BODY_SCHEMA)),
-        blankToNull(optional(execution, RESPONSE_SCHEMA)), headers(execution), token, sourcesAsBody, technicalErrors);
+        blankToNull(optional(execution, RESPONSE_SCHEMA)), headers(execution), token, sourcesAsBody, technicalErrors,
+        mock(execution));
+  }
+
+  /**
+   * Test mode: {@code mockEnabled} true (literal, or an expression such as
+   * {@code ${execution.getVariable('useMockData') == true}}) → answer with {@code mockStatus}
+   * (default 200) and {@code mockResponse} instead of calling the service.
+   */
+  private MockResponse mock(DelegateExecution execution) {
+    Object enabled = execution.getVariableLocal(MOCK_ENABLED);
+    String flag = enabled == null ? "" : enabled.toString().trim();
+    if (flag.isEmpty() || flag.equals("false")) {
+      return null;
+    }
+    if (!flag.equals("true")) {
+      throw new RestConnectorException("Input '" + MOCK_ENABLED + "' on " + execution.getCurrentActivityId()
+          + " must be true, false or an expression giving one of them, got: " + flag);
+    }
+    String status = blankToNull(optional(execution, MOCK_STATUS));
+    String body = blankToNull(optional(execution, MOCK_RESPONSE));
+    if (body != null && looksLikeJson(body)) {
+      try {
+        mapper.readTree(body);
+      } catch (Exception e) {
+        throw new RestConnectorException("Input '" + MOCK_RESPONSE + "' on " + execution.getCurrentActivityId()
+            + " is not valid JSON: " + e.getMessage(), e);
+      }
+    }
+    try {
+      return new MockResponse(status == null ? 200 : Integer.parseInt(status.trim()), body);
+    } catch (IllegalArgumentException e) {
+      throw new RestConnectorException("Input '" + MOCK_STATUS + "' on " + execution.getCurrentActivityId()
+          + ": " + e.getMessage(), e);
+    }
   }
 
   public String resultVariable(DelegateExecution execution) {

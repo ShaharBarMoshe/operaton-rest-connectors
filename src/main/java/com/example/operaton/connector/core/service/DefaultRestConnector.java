@@ -11,9 +11,14 @@ import com.example.operaton.connector.http.transport.HttpResponse;
 import com.example.operaton.connector.http.transport.HttpTransport;
 import com.example.operaton.connector.http.transport.TransportException;
 import org.slf4j.Logger;
+import org.springframework.http.HttpHeaders;
 import org.slf4j.LoggerFactory;
 
-/** {@link RestConnector}: {@link RequestFactory} → {@link HttpTransport} → {@link ResponseMapper}. */
+/**
+ * {@link RestConnector}: {@link RequestFactory} → {@link HttpTransport} → {@link ResponseMapper}.
+ * With a {@link com.example.operaton.connector.core.api.MockResponse} (test mode) the transport is
+ * skipped and the mock answer goes through the same response handling.
+ */
 public class DefaultRestConnector implements RestConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(DefaultRestConnector.class);
@@ -30,15 +35,24 @@ public class DefaultRestConnector implements RestConnector {
 
   @Override
   public RestResult execute(RestCall call, CallContext context) {
-    HttpRequest request = requests.create(call, context);
-    LOG.info("[{}] {} {}", context.location(), request.method(), request.uri());
+    HttpRequest request = requests.create(call, context);     // built + validated in test mode too
     LOG.debug("[{}] body: {}", context.location(), request.body());
-    HttpResponse response;
+    return responses.map(call, call.mockResponse() != null ? mock(call, request, context) : send(call, request, context), context);
+  }
+
+  private HttpResponse send(RestCall call, HttpRequest request, CallContext context) {
+    LOG.info("[{}] {} {}", context.location(), request.method(), request.uri());
     try {
-      response = transport.send(request);
+      return transport.send(request);
     } catch (TransportException e) {
       throw responses.noResponse(call, e);
     }
-    return responses.map(call, response, context);
+  }
+
+  /** Test mode: nothing goes over the wire. */
+  private static HttpResponse mock(RestCall call, HttpRequest request, CallContext context) {
+    LOG.info("[{}] MOCK {} {} - not sent, answering {}", context.location(), request.method(), request.uri(),
+        call.mockResponse().status());
+    return new HttpResponse(call.mockResponse().status(), call.mockResponse().body(), new HttpHeaders());
   }
 }

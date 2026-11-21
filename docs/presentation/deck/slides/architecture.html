@@ -1,0 +1,14 @@
+<section id="architecture" class="alt">
+<p class="eyebrow">INSIDE THE CONNECTOR</p>
+<h2>Layers, wired by Spring</h2>
+<div class="steps">
+<div class="step in" style="--i:0"><p class="num">engine</p><p class="stitle">Operaton adapter</p><p class="sbody mono">delegate · input · output · auth</p><p class="sbody" style="margin-top:12px">The only layer that knows the engine</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step http in" style="--i:1"><p class="num">core</p><p class="stitle">The use case</p><p class="sbody mono">api · error · request · response · service</p><p class="sbody" style="margin-top:12px">Build, send, map the answer</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:2"><p class="num">schema</p><p class="stitle">Pasted schemas</p><p class="sbody mono">SchemaCompiler · JsonComposer</p><p class="sbody" style="margin-top:12px">Find, validate, shape</p></div>
+<div class="step in" style="--i:3"><p class="num">http</p><p class="stitle">The wire</p><p class="sbody mono">transport · restclient · params</p><p class="sbody" style="margin-top:12px">Spring RestClient, JDK HttpClient</p></div>
+</div>
+<p class="lead" style="margin-top:56px">The boundaries are interfaces – <span class="mono">RestConnector</span>, <span class="mono">SchemaCompiler</span>, <span class="mono">HttpTransport</span>, <span class="mono">TokenProvider</span> – each a Spring bean you can replace with <span class="mono">@Primary</span>. <span class="mono">LayerDependencyTest</span> fails the build on a wrong import.</p>
+<aside>Dependencies point one way: engine to core, core to schema and http. Inside core, engine and http the sub-packages have rules too. One RestConnectorDelegate class serves all five beans, restGet to restDelete. 83 tests cover the layers on their own with a fake transport, and the models on the engine against the nginx mock.</aside>
+</section>

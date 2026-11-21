@@ -1,0 +1,18 @@
+<section id="postio">
+<p class="eyebrow">THE RUN · 3 · THE POST TASK</p>
+<h2>Input: 5 variables. Output: 2 variables.</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<div class="col in" style="--i:0;flex:1.15">
+<p class="codelabel">INPUT · sources = profile, contact, address, account, loyalty</p>
+<p class="code" style="transform:translate(21px, 15px)">POST /api/customer-snapshots<br>Authorization: Bearer eyJhbGci…<br><br>{"customerId": 501,<br>&#160;"name": {"first": "Noa", "last": "Levi"},<br>&#160;"birthDate": "1990-04-12",<br>&#160;"contact": {"email": "noa.levi@example.com",<br>&#160;&#160;&#160;"phone": "+972-50-555-0101"},<br>&#160;"address": {"street": "Herzl 10", "city": "Tel Aviv",<br>&#160;&#160;&#160;"zip": "6100000", "country": "IL"},<br>&#160;"account": {"status": "active", <span class="k">"tier": "platinum"</span>},<br>&#160;"loyalty": {"points": 1280, "level": "gold"},<br>&#160;<span class="k">"snapshotBy": "demo"</span>}</p>
+</div>
+<div class="col in" style="--i:1;flex:0.85">
+<p class="codelabel">OUTPUT · response → variables</p>
+<p class="code">HTTP <span class="k">201</span> Created<br>{<span class="k">"id": "s-1"</span>, "customerId": 501, …}</p>
+<div class="card" style="margin-top:24px"><p class="tag">snapshot</p><p class="body">The response body, checked by <span class="mono">responseSchema</span>: the pasted CustomerSnapshot, where the readOnly <span class="mono">id</span> is required and must match <span class="mono">^s-[0-9]+$</span>.</p></div>
+<div class="card" style="margin-top:20px"><p class="tag">postStatus</p><p class="body">Integer <span class="mono">201</span>.</p></div>
+<p class="small" style="margin-top:20px">Orange: <span class="mono">tier</span> from loyalty (later source wins), <span class="mono">snapshotBy</span> from <span class="mono">x-expression</span> on the <span class="mono">initiator</span> variable.</p>
+</div>
+</div>
+<aside>The request body is exactly what the connector built from the five GET variables with the pasted body schema: firstName and lastName re-nested under name, noise dropped, snapshotBy added from the initiator start variable. The mock echoes the body with an id, so snapshot holds id s-1 plus the same fields.</aside>
+</section>

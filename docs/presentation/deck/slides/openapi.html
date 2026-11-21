@@ -1,0 +1,25 @@
+<section id="openapi" class="dark">
+<p class="eyebrow">SCHEMAS FROM OPENAPI / SWAGGER</p>
+<h2>Copy the schema from the service, paste it into the task</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<div class="col in" style="--i:0;flex:1.1">
+<table style="font-size:26px;color:#F5F3EE">
+<tr><th style="width:34%">Field</th><th style="width:66%">Paste</th></tr>
+<tr><td class="tmono">paramsSchema</td><td>the operation’s <span class="mono">parameters</span> list</td></tr>
+<tr><td class="tmono">bodySchema</td><td>a schema, the <span class="mono">requestBody</span>, or the operation</td></tr>
+<tr><td class="tmono">responseSchema</td><td>a schema, a response, or <span class="mono">responses</span> (first 2xx)</td></tr>
+</table>
+<p class="small" style="margin-top:32px">JSON or YAML · OpenAPI 3.1, 3.0 or Swagger 2.0 · no comment lines.</p>
+</div>
+<div class="col in" style="--i:1;flex:0.9">
+<p class="codelabel" style="color:#F2A86B">THE WHOLE DOCUMENT + ONE LINE</p>
+<p class="code"><span class="k">$ref: '#/components/schemas/CustomerSnapshot'</span><br>openapi: 3.0.3<br>info: …<br>paths: …<br>components: …<br><span class="c">… the rest, unchanged</span></p>
+</div>
+</div>
+<div class="grid3" style="margin-top:48px">
+<div class="in" style="--i:2"><h3>$ref stays inside</h3><p class="small">Paste the components or the whole document; URLs are never fetched.</p></div>
+<div class="in" style="--i:3"><h3>Validated as OpenAPI</h3><p class="small">networknt’s OpenAPI dialects: nullable, formats, $ref as written.</p></div>
+<div class="in" style="--i:4"><h3>One schema, both ways</h3><p class="small">readOnly is left out of requests, writeOnly out of responses.</p></div>
+</div>
+<aside>The modeler copies what the other service already publishes. A plain schema works as is; when it uses $ref, paste the referenced components or the whole document and add one $ref line naming what to use. Whole documents are read with swagger-parser, which also converts Swagger 2.0. Nothing is translated: the validator reads the pasted text in its own dialect.</aside>
+</section>

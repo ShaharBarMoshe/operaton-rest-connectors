@@ -1,0 +1,14 @@
+<section id="keywords" class="alt">
+<p class="eyebrow">SCHEMA KEYWORDS</p>
+<h2>How a schema finds each value</h2>
+<div class="grid3">
+<div class="card in" style="--i:0"><p class="tag">same name</p><p class="body">A property takes the value with the same name from the merged sources; a parameter falls back to the process variable of that name.</p></div>
+<div class="card in" style="--i:1"><p class="tag">x-source</p><p class="body">JSON pointer to take it from elsewhere: <span class="mono">"/customer/firstName"</span> → <span class="mono">name.first</span></p></div>
+<div class="card in" style="--i:2"><p class="tag">x-expression</p><p class="body">An engine expression <b>without</b> <span class="mono">${ }</span>: <span class="mono">"initiator"</span>, <span class="mono">"execution.processInstanceId"</span></p></div>
+<div class="card in" style="--i:3"><p class="tag">in · x-in</p><p class="body">Where a param goes: <span class="mono">path</span>, <span class="mono">query</span> (default) or <span class="mono">header</span>. Pasted OpenAPI parameters already say it.</p></div>
+<div class="card in" style="--i:4"><p class="tag">x-flatten</p><p class="body">Flatten nested input first: <span class="mono">address.city</span> → <span class="mono">city</span>; later source wins</p></div>
+<div class="card in" style="--i:5"><p class="tag">declared only</p><p class="body">Undeclared fields are dropped (<span class="mono">additionalProperties: true</span> keeps them); readOnly fields stay out of requests.</p></div>
+</div>
+<p class="small" style="margin-top:32px">After shaping, scalars are coerced to the schema type (<span class="mono">"1534.50"</span> → <span class="mono">1534.5</span>), <span class="mono">default</span> / <span class="mono">const</span> fill gaps, and the result is validated against the same schema.</p>
+<aside>These rules cover nearly every mapping. OpenAPI allows x- keys, so our x-source, x-expression and x-flatten simply sit inside the pasted schema. Standard keywords such as required, enum, format, nullable and minimum still validate as usual.</aside>
+</section>

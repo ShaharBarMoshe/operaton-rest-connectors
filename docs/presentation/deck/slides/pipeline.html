@@ -1,0 +1,19 @@
+<section id="pipeline">
+<p class="eyebrow">HOW IT WORKS</p>
+<h2>What happens when a REST task runs</h2>
+<div class="steps">
+<div class="step in" style="--i:0"><p class="num">01</p><p class="stitle">Read sources</p><p class="sbody">Variables named in <span class="mono">sources</span>, or JSON literals</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:1"><p class="num">02</p><p class="stitle">Deep-merge</p><p class="sbody">In order; later wins, arrays are replaced</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:2"><p class="num">03</p><p class="stitle">Shape by schema</p><p class="sbody">Pick, rename, default, coerce; only declared fields</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:3"><p class="num">04</p><p class="stitle">Validate</p><p class="sbody">In the OpenAPI dialect; a bad request is never sent</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step http in" style="--i:4"><p class="num">05</p><p class="stitle">HTTP call</p><p class="sbody">Path, query, headers, Bearer token, body; or the mock answer</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:5"><p class="num">06</p><p class="stitle">Store result</p><p class="sbody">Optional response schema, then JSON into a variable</p></div>
+</div>
+<p class="lead" style="margin-top:56px">Steps 03–04 run twice when both are set: <span class="mono">paramsSchema</span> builds the URL params and headers, <span class="mono">bodySchema</span> builds the body. In test mode step 05 sends nothing.</p>
+<aside>Walk through the pipeline left to right. The same merged document feeds both the params schema and the body schema, and each schema both builds and validates. In test mode the request is still built and validated, only the call itself is replaced by the mock answer.</aside>
+</section>

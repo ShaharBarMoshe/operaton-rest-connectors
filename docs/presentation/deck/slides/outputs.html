@@ -1,0 +1,24 @@
+<section id="outputs" class="alt">
+<p class="eyebrow">OUTPUT VARIABLES · THE RESPONSE</p>
+<h2>What the task writes back</h2>
+<div class="row">
+<div class="col" style="flex:1">
+<div class="card in" style="--i:0"><p class="tag">resultVariable</p><p class="body">Receives the response body as a <span class="mono">Json</span> variable. Read a field with <span class="mono">${snapshot.prop("id").stringValue()}</span>, or use it as a source of a later task.</p></div>
+<div class="card in" style="--i:1;margin-top:24px"><p class="tag">statusVariable</p><p class="body">Receives the HTTP status code, e.g. <span class="mono">201</span>.</p></div>
+<div class="card in" style="--i:2;margin-top:24px"><p class="tag">responseSchema</p><p class="body">Optional, pasted from OpenAPI. Keeps only declared fields (no writeOnly ones) and validates before storing.</p></div>
+</div>
+<div class="col" style="flex:1.1">
+<p class="codelabel">WHEN SOMETHING GOES WRONG</p>
+<table style="font-size:24px">
+<tr><th style="width:50%">Situation</th><th style="width:50%">Result</th></tr>
+<tr><td>Request breaks its schema</td><td class="tmono">BpmnError REQUEST_INVALID</td></tr>
+<tr><td>Response breaks its schema</td><td class="tmono">BpmnError RESPONSE_INVALID</td></tr>
+<tr><td>HTTP 4xx (401, 404 …)</td><td class="tmono">BpmnError HTTP_404 …</td></tr>
+<tr><td>HTTP 5xx, timeout, I/O</td><td>Exception (incident / retry), or <span class="mono">HTTP_5xx</span> / <span class="mono">CONNECTION_FAILED</span> with <span class="mono">technicalErrors = bpmnError</span></td></tr>
+<tr><td>Missing source variable, malformed token, bad input</td><td>Exception → incident</td></tr>
+</table>
+<p class="small" style="margin-top:24px">Catch a BpmnError with an error boundary event on the task, e.g. <span class="mono">HTTP_404</span> → “User not found”.</p>
+</div>
+</div>
+<aside>Outputs are optional: leave resultVariable empty for fire-and-forget calls. Business errors (4xx, schema problems) become BPMN errors you can model; technical errors (5xx, network) become incidents so operations can retry. Mock answers in test mode go through exactly the same rules.</aside>
+</section>

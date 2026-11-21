@@ -1,0 +1,15 @@
+<section id="mockexample">
+<p class="eyebrow">TEST MODE · IN THE SAMPLE MODELS</p>
+<h2>One start variable switches the whole process</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<img class="in" src="/_blob/42667a3ef1cc7b1382255cf5c246ca17" alt="Element template REST POST, Test mode (mock data) group: Mock enabled ${execution.getVariable('useMockData') == true}, Mock status 201, Mock response holding the snapshot JSON with id s-9001" style="--i:0;width:640px;height:608px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<div class="col in" style="--i:1">
+<p class="codelabel">start request</p>
+<p class="code">{"variables": {<br>&#160;"customerId": {"value": 501, …},<br>&#160;"accessToken": {"value": "eyJ…"},<br>&#160;<span class="k">"useMockData": {"value": true,</span><br>&#160;&#160;<span class="k">"type": "Boolean"}</span>}}</p>
+<p class="codelabel" style="margin-top:32px">result</p>
+<p class="code">6 tasks · <span class="k">0 requests sent</span><br>snapshot.id = "s-9001" · postStatus = 201</p>
+<p class="small" style="margin-top:24px">All 16 REST tasks of the 3 models carry mock data. Without the variable, the same model calls the service.</p>
+</div>
+</div>
+<aside>The example is examples/start-customer-snapshot-mock.json. MockModeProcessTest runs every model with useMockData = true and checks that the nginx mock received nothing, and that the same model calls the service when the variable is missing.</aside>
+</section>

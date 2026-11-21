@@ -1,0 +1,14 @@
+<section id="connectors" class="alt">
+<p class="eyebrow">THE CONNECTORS</p>
+<h2>Five beans, one per HTTP action</h2>
+<table>
+<tr><th style="width:34%">Delegate expression</th><th style="width:16%">HTTP</th><th style="width:20%">Body by default</th><th style="width:30%">Typical use</th></tr>
+<tr><td class="tmono">${restGet}</td><td>GET</td><td>no</td><td>read data</td></tr>
+<tr><td class="tmono">${restPut}</td><td>PUT</td><td>yes</td><td>replace a resource</td></tr>
+<tr><td class="tmono">${restUpdate}</td><td>PATCH</td><td>yes</td><td>partial update</td></tr>
+<tr><td class="tmono">${restPost}</td><td>POST</td><td>yes</td><td>create / submit</td></tr>
+<tr><td class="tmono">${restDelete}</td><td>DELETE</td><td>no</td><td>remove</td></tr>
+</table>
+<p class="lead" style="margin-top:48px">All five take the same inputs. Set on a Service Task: <b>Implementation → Delegate expression</b>. “Body by default” means: with no <span class="mono">bodySchema</span>, the merged sources are sent as they are.</p>
+<aside>Each connector is a Spring bean implementing JavaDelegate. The only difference between them is the HTTP method and whether the merged sources become the body when no body schema is given.</aside>
+</section>

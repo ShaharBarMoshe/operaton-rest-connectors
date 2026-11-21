@@ -1,0 +1,16 @@
+<section id="modeler" class="alt">
+<p class="eyebrow">IN THE MODELER</p>
+<h2>The same task, with and without the template</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<div class="col in" style="--i:0">
+<p class="codelabel">Without template: Camunda 7 panel, raw inputs</p>
+<img src="/_blob/66c16aeb039dbd52c500c7d15a57cbb8" alt="Properties panel of the POST merged snapshot task: Delegate expression ${restPost}; Inputs list with url, sources, paramsSchema, bodySchema, headers, responseSchema, resultVariable, statusVariable, technicalErrors, mockEnabled, mockStatus, mockResponse" style="width:780px;height:516px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<p class="small" style="margin-top:16px">Every input is listed by name, so nothing has to be remembered.</p>
+</div>
+<div class="col in" style="--i:1">
+<p class="codelabel">With the “REST POST” template</p>
+<img src="/_blob/9e228c0718ac71276e2042a652153605" alt="Element template form REST POST, Response group open: the Response schema field holds the CustomerSnapshot schema pasted in YAML, starting with $ref: '#/components/schemas/CustomerSnapshot'" style="width:680px;height:562px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+</div>
+</div>
+<aside>Both screenshots are rendered with bpmn-js and the Camunda 7 properties panel, the same components Camunda Modeler uses, from the real customer-snapshot model. Left: the plain panel any modeler shows. Right: the element template from .camunda/element-templates, found when the project folder is open, with the pasted OpenAPI response schema.</aside>
+</section>

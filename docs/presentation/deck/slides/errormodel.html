@@ -1,0 +1,13 @@
+<section id="errormodel">
+<p class="eyebrow">ERROR HANDLING IN THE MODEL</p>
+<h2>One event subprocess catches every REST error</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<img class="in" src="/_blob/1f8b1a59498c3c601b275cacfc71644c" alt="user-sync diagram: GET user, PUT merged user, UPDATE preferences, DELETE sessions; an HTTP_404 boundary event on GET user leads to User not found; below, the event subprocess Handle REST errors with an error start event, a gateway Which error? and five end events: Not authorized, Not found, Invalid data, Service unavailable, Request rejected" style="--i:0;width:960px;height:640px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<div class="col in" style="--i:1">
+<div class="card"><p class="tag">Catch-all start</p><p class="body">An error start event with no error code catches any BPMN error from any task, including all 5 parallel GETs.</p></div>
+<div class="card" style="margin-top:20px"><p class="tag">Route by code</p><p class="body">The code lands in <span class="mono">errorCode</span>, the response body in <span class="mono">errorMessage</span>; a gateway picks the end event.</p></div>
+<div class="card" style="margin-top:20px"><p class="tag">Specific first</p><p class="body">A boundary event on a task (HTTP_404 on GET user) still wins.</p></div>
+</div>
+</div>
+<aside>The subprocess is interrupting: the first error cancels the rest of the instance, so in the fan-out no POST is sent after a failed GET. All three models have it. The end event shows in history which kind of error ended the instance.</aside>
+</section>

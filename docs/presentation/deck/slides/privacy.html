@@ -1,0 +1,16 @@
+<section id="privacy" class="dark">
+<p class="eyebrow">VARIABLES &amp; HISTORY</p>
+<h2>Nothing stays after the process completes</h2>
+<table style="font-size:26px;color:#F5F3EE">
+<tr><th style="width:60%">Data</th><th style="width:40%">Kept?</th></tr>
+<tr><td>Process and activity instances, incidents (what ran, where it ended)</td><td>Yes, in history</td></tr>
+<tr><td>Variables: accessToken, sources, results, every other variable</td><td>Never written to history</td></tr>
+<tr><td>Runtime variables</td><td>Only while the instance runs; deleted on completion</td></tr>
+</table>
+<div class="row" style="margin-top:48px;gap:40px">
+<div class="col"><h3>How</h3><p class="small"><span class="mono">operaton.bpm.history-level: activity</span> in <span class="mono">application.yaml</span>. Engine-wide.</p></div>
+<div class="col"><h3>Need the results?</h3><p class="small">Ask for them at start: <span class="mono">"withVariablesInReturn": true</span> over REST, <span class="mono">executeWithVariablesInReturn()</span> in Java.</p></div>
+<div class="col"><h3>Checked by tests</h3><p class="small">Every process test asserts no runtime variables, no historic variables and no historic details remain.</p></div>
+</div>
+<aside>While an instance waits (async continuation, timer, user task) its variables, including the token, are in the runtime table until it completes. A process that runs straight through finishes before anything is left.</aside>
+</section>

@@ -1,0 +1,15 @@
+<section id="inputs">
+<p class="eyebrow">INPUT VARIABLES · THE REQUEST</p>
+<h2>What you set on the task</h2>
+<table style="font-size:24px">
+<tr><th style="width:21%">Input</th><th style="width:43%">What it does</th><th style="width:36%">Example</th></tr>
+<tr><td class="tmono">url</td><td>Required. <span class="mono">{name}</span> placeholders are filled from path params</td><td class="tmono">${apiBaseUrl}/users/{userId}</td></tr>
+<tr><td class="tmono">sources</td><td>Variable names (or JSON literals), deep-merged in this order</td><td class="tmono">currentUser, userChanges</td></tr>
+<tr><td class="tmono">paramsSchema</td><td>The operation’s OpenAPI <span class="mono">parameters</span>, pasted → path, query, header</td><td class="tmono">- name: customerId<br>&#160;&#160;in: path</td></tr>
+<tr><td class="tmono">bodySchema</td><td>The request schema pasted from OpenAPI / Swagger → builds and validates the body</td><td class="tmono">$ref: '#/components/…'</td></tr>
+<tr><td class="tmono">headers</td><td>Static headers as a JSON object; values may use expressions</td><td class="tmono">{"X-Correlation-Id": "${…}"}</td></tr>
+<tr><td class="tmono">mockEnabled<br>mockStatus<br>mockResponse</td><td>Test mode: answer with mock data instead of calling the service</td><td class="tmono">${execution.getVariable(<br>&#160;'useMockData') == true}</td></tr>
+</table>
+<p class="small" style="margin-top:28px">No token input: the connector sends the <span class="mono">accessToken</span> execution variable. Schemas are pasted as JSON or YAML, without comments, and must not contain <span class="mono">${…}</span>; use <span class="mono">x-expression</span> instead.</p>
+<aside>Every REST task in the models carries all inputs, empty when unused, so any modeler shows the full list. The schema rules: paste the schema itself, JSON or YAML, no comment lines, and no dollar-brace expressions inside the schema text because the engine would evaluate them first.</aside>
+</section>

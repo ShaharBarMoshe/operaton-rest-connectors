@@ -1,0 +1,20 @@
+<section id="merge">
+<p class="eyebrow">EXAMPLE 1 · PUT /users/1042</p>
+<h2>Two objects + one schema = the body</h2>
+<div class="row" style="gap:24px;align-items:flex-start">
+<div class="col in" style="--i:0">
+<p class="codelabel">currentUser (GET result)</p>
+<p class="code">{"user": {<br>&#160;"id": 1042,<br>&#160;"name": "Maya Lin",<br>&#160;"contact": {<br>&#160;&#160;"email": "maya.lin@…",<br>&#160;&#160;"phone": "+1-555-0192"},<br>&#160;"preferences": {<br>&#160;&#160;"theme": "light",<br>&#160;&#160;"notifications": {<br>&#160;&#160;&#160;"email": true,<br>&#160;&#160;&#160;"sms": false}}}}</p>
+</div>
+<div class="col in" style="--i:1">
+<p class="codelabel">userChanges (start var)</p>
+<p class="code">{"user": {<br>&#160;"contact": {<br>&#160;&#160;<span class="k">"phone": "+1-555-0148"</span>},<br>&#160;"preferences": {<br>&#160;&#160;<span class="k">"theme": "dark"</span>,<br>&#160;&#160;"notifications": {<br>&#160;&#160;&#160;<span class="k">"sms": true</span>,<br>&#160;&#160;&#160;<span class="k">"push": true</span>}},<br>&#160;<span class="k">"roles": ["editor",</span><br>&#160;&#160;<span class="k">"reviewer"]</span>}}</p>
+</div>
+<div class="col in" style="--i:2">
+<p class="codelabel">→ request body</p>
+<p class="code">{"user": {<br>&#160;"id": 1042,<br>&#160;"name": "Maya Lin",<br>&#160;"contact": {<br>&#160;&#160;"email": "maya.lin@…",<br>&#160;&#160;<span class="k">"phone": "+1-555-0148"</span>},<br>&#160;"preferences": {<br>&#160;&#160;<span class="k">"theme": "dark"</span>,<br>&#160;&#160;"notifications": {"email":<br>&#160;&#160;&#160;true, <span class="k">"sms": true,</span><br>&#160;&#160;&#160;<span class="k">"push": true</span>}},<br>&#160;<span class="k">"roles": [ … ]</span>}}</p>
+</div>
+</div>
+<p class="small" style="margin-top:28px"><span class="mono">sources = currentUser, userChanges</span> · later source wins · the “merged user” schema keeps only known fields, coerces types and checks required ones.</p>
+<aside>This is the original example from the requirements. currentUser comes from a GET, userChanges is a start variable. Orange marks what the second object changed or added. The schema then drops anything it does not know, for example an internalScore field from the API.</aside>
+</section>

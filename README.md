@@ -2,11 +2,14 @@
 
 Operaton 2.2.2 · Spring Boot 4.1.3 · Java 17+ (build with a JDK: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn test`)
 
+Presentation: [`docs/presentation`](docs/presentation/README.md) (open `docs/presentation/index.html`).
+
 ## Project layout
 
 ```
 .camunda/element-templates/   Modeler templates (the Modelers look for this folder name)
 docker-compose.yml            the nginx mock on :8081
+docs/presentation/            the slide deck (index.html to view)
 examples/                     start payloads for the engine REST API
 mock/nginx/                   mock service (nginx + njs)
 mock/openapi/                 its OpenAPI document, served as GET /openapi.yaml
@@ -85,6 +88,7 @@ fetches OAuth2 client-credentials tokens, or an `HttpTransport` with mTLS.
 | `headers` | optional static headers: JSON object string (`{"X-A": "${expr}"}`) or `camunda:map` |
 | `resultVariable` / `statusVariable` | where to store the response / HTTP status. A JSON object or array is stored as a Spin `Json` variable (Cockpit shows its value; read a field with `${snapshot.prop("id").stringValue()}`; usable as a source again), anything else as a plain value |
 | `technicalErrors` | `exception` (default) or `bpmnError`: how 5xx / timeouts / connection problems are raised, see [Errors](#errors) |
+| `mockEnabled` / `mockStatus` / `mockResponse` | test mode: answer with mock data instead of calling the service, see [Test mode](#test-mode-mock-data) |
 
 There is no authentication input: the connector reads the token from the execution itself, see
 [Authentication](#authentication-jwt).
@@ -288,6 +292,31 @@ remove those with history cleanup / `historyService.deleteHistoricProcessInstanc
 `user-sync` and `customer-snapshot` are started with `accessToken`; the nginx mock
 answers 401 on the customer endpoints without a `Bearer header.payload.signature` token
 (`CustomerSnapshotNginxTest`).
+
+## Test mode (mock data)
+
+Every REST task has three more inputs (group *Test mode (mock data)* in the templates):
+
+| input | |
+|---|---|
+| `mockEnabled` | `true` = do not send the request; empty / `false` = real call. Usually an expression, so a start variable switches the whole process: `${execution.getVariable('useMockData') == true}` |
+| `mockStatus` | the status the mock answers with, default `200`; `404`, `503`, ... test the error handling |
+| `mockResponse` | the response body (JSON or text); `${...}` inside is evaluated, so it can echo variables |
+
+In test mode the request is still **built and validated** (sources, params / body schemas), it is
+logged as `MOCK GET ... - not sent`, and the mock answer goes through the normal response handling:
+status → BPMN errors, response schema, result / status variables. A mock body that breaks the
+pasted response schema ends in `RESPONSE_INVALID`, like a real one would.
+
+All three sample models carry mock data on every REST task behind the `useMockData` switch:
+
+```bash
+curl -X POST -H 'Content-Type: application/json' -d @examples/start-customer-snapshot-mock.json \
+  localhost:8080/engine-rest/process-definition/key/customer-snapshot/start   # no request leaves the app
+```
+
+`MockModeProcessTest` runs each model with `useMockData = true` and checks that the service received
+nothing, and that without the switch the same model calls the service.
 
 ## Errors
 

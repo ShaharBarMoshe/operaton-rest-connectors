@@ -2,6 +2,67 @@
 
 Operaton 2.2.2 · Spring Boot 4.1.3 · Java 17+ (build with a JDK: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn test`)
 
+## Project layout
+
+```
+.camunda/element-templates/   Modeler templates (the Modelers look for this folder name)
+docker-compose.yml            the nginx mock on :8081
+examples/                     start payloads for the engine REST API
+mock/nginx/                   mock service (nginx + njs)
+mock/openapi/                 its OpenAPI document, served as GET /openapi.yaml
+scripts/                      make-portable.py, git pre-commit hook
+src/main/java/com/example/operaton/
+  OperatonRestApplication
+  connector/
+    config/    Spring wiring: RestConnectorConfig, RestConnectorProperties (rest-connector.*)
+    engine/    Operaton adapter
+      delegate/  RestConnectorDelegate: the JavaDelegate bean per HTTP method (restGet ... restDelete)
+      input/     TaskInputs (task inputs → RestCall), ExecutionCallContext, EngineValues (Spin → plain)
+      output/    ResultVariables: status / result → process variables (JSON → Spin Json)
+      auth/      TokenProvider, VariableTokenProvider (rest-connector.jwt-variable)
+    core/      the use case
+      api/       the contract the engine layer uses: RestConnector, RestCall, RestResult, CallContext, TechnicalErrors
+      error/     ConnectorError (business, → BPMN error), RestConnectorException (technical, → incident)
+      request/   RequestFactory: sources + schemas → HttpRequest (params, body, URL, headers, token)
+      response/  ResponseMapper: status codes → result or error, response schema
+      service/   DefaultRestConnector: RequestFactory → HttpTransport → ResponseMapper
+    schema/    schemas + JSON: SchemaCompiler, OpenApiSchemaCompiler, PastedSchema, JsonComposer
+    http/      the wire
+      transport/   HttpTransport, HttpRequest, HttpResponse, TransportException (the contract)
+      restclient/  RestClientHttpTransport (Spring RestClient on the JDK HttpClient)
+      params/      HttpRequestParams: x-in → path / query / header, URI building
+src/main/resources/bpmn/      the sample models
+src/test/java/com/example/operaton/
+  connector/{core/service,engine/auth,schema,config}/   unit tests per layer (no engine, fake transport)
+  connector/LayerDependencyTest              which layer / sub-package may import which
+  process/                                 the models on the engine against the mock (Testcontainers)
+  model/                                   the model files: namespace, inputs, schemas compile
+```
+
+## Architecture
+
+```
+ engine  ─────────▶  core  ─────────▶  schema
+ (Operaton)          (use case)   └──▶  http
+```
+
+Each layer only depends on the ones to its right; only `engine` knows Operaton, and `core` does
+not know the engine or the HTTP client. Inside `core`, `engine` and `http` the sub-packages have
+rules too (e.g. `engine/auth` and `http/transport` depend on nothing); `LayerDependencyTest` fails
+the build on a wrong import.
+
+| layer | role | interfaces (Spring beans) | default implementation |
+|---|---|---|---|
+| `engine` | one `JavaDelegate` bean per HTTP method: reads the task inputs into a `RestCall`, stores status / result variables, turns `ConnectorError` into `BpmnError` | `TokenProvider` | `VariableTokenProvider` (variable `rest-connector.jwt-variable`) |
+| `core` | merge sources, build + validate params and body (`request`), send, map status codes, shape + validate the response (`response`); `service` orchestrates, `api` is the contract | `RestConnector`, `CallContext` (expressions and variables, backed by the execution) | `DefaultRestConnector` with `RequestFactory`, `ResponseMapper` |
+| `schema` | finds the schema in what was pasted, validates it in its OpenAPI dialect, shapes JSON with it | `SchemaCompiler` | `OpenApiSchemaCompiler` (swagger-parser + networknt) |
+| `http` | the wire | `HttpTransport` | `RestClientHttpTransport` (Spring `RestClient`, JDK HttpClient) |
+
+`RestConnectorConfig` creates all beans; the five delegates are the same class with different
+settings (`restGet` = GET without body ... `restPost` = POST, merged sources as body by default).
+To replace a part, declare a bean of its interface with `@Primary`, e.g. a `TokenProvider` that
+fetches OAuth2 client-credentials tokens, or an `HttpTransport` with mTLS.
+
 ## Connectors
 
 | Bean (`camunda:delegateExpression`) | HTTP | Body by default |
@@ -18,22 +79,86 @@ Operaton 2.2.2 · Spring Boot 4.1.3 · Java 17+ (build with a JDK: `JAVA_HOME=/u
 |---|---|
 | `url` | required, e.g. `${apiBaseUrl}/users/{userId}`. `{x}` is filled from params with `x-in: path` |
 | `sources` | variable names (`currentUser, userChanges` or a `camunda:list` of names); list items may also be JSON literals or `${expr}` values. **Deep-merged in order** (later wins; arrays replaced). Prefer names: `${var}` items holding Spin `Json` values cannot be stored by the engine |
-| `bodySchema` | inline JSON Schema that **builds + validates** the body from the merged sources |
-| `paramsSchema` | inline JSON Schema that builds path / query / header params (GET, DELETE, or any method) |
-| `responseSchema` | optional inline JSON Schema, shapes + validates the response |
+| `bodySchema` | the request schema **pasted from the target service's OpenAPI / Swagger document**; it **builds + validates** the body from the merged sources. See [Schemas from OpenAPI](#schemas-from-openapi--swagger) |
+| `paramsSchema` | the operation's OpenAPI `parameters` list (path / query / header), pasted. A parameter not found in the sources is taken from the process variable with the same name |
+| `responseSchema` | optional, the response schema pasted (a schema, a response, or the operation's `responses`): shapes + validates the response |
 | `headers` | optional static headers: JSON object string (`{"X-A": "${expr}"}`) or `camunda:map` |
-| `jwt` | optional bearer token → `Authorization: Bearer <token>`. Give the **name of the variable** holding it (`accessToken`); a token literal or `${expr}` result also works. See [Authentication](#authentication-jwt) |
-| `resultVariable` / `statusVariable` | where to store the response (as JSON) / HTTP status |
+| `resultVariable` / `statusVariable` | where to store the response / HTTP status. A JSON object or array is stored as a Spin `Json` variable (Cockpit shows its value; read a field with `${snapshot.prop("id").stringValue()}`; usable as a source again), anything else as a plain value |
+| `technicalErrors` | `exception` (default) or `bpmnError`: how 5xx / timeouts / connection problems are raised, see [Errors](#errors) |
 
-Schemas are given **as the input value itself** (an inline JSON object string), not as a file path,
-so a model is self-contained. Two things to know:
+There is no authentication input: the connector reads the token from the execution itself, see
+[Authentication](#authentication-jwt).
+
+## Schemas from OpenAPI / Swagger
+
+Copy the schema from the other service's OpenAPI (Swagger) document and paste it into the task,
+**JSON or YAML, OpenAPI 3.1 / 3.0 or Swagger 2.0**. What you can paste:
+
+| field | paste |
+|---|---|
+| `paramsSchema` | the operation's `parameters` list (or the whole operation) |
+| `bodySchema` | a schema (`components.schemas.X`), the operation's `requestBody`, or the whole operation |
+| `responseSchema` | a schema, a response, or the operation's `responses` (the first 2xx with a body is used) |
+
+`$ref`s are resolved inside the pasted text only (remote URLs are never fetched), so paste what
+they point to as well: the `components` section, or simply **the whole document**, plus one line on
+top that names what to use:
+
+```yaml
+$ref: '#/components/schemas/CustomerSnapshot'      # or '#/paths/~1customer-snapshots/post/responses'
+openapi: 3.0.3
+...the rest of the document, unchanged...
+```
+
+What the connector does with it: `PastedSchema` finds the schema to use (whole documents are read
+with **swagger-parser**, which also converts Swagger 2.0 to OpenAPI 3); nothing is translated. The
+**networknt** validator checks it in the document's own **OpenAPI dialect** (3.0 for OpenAPI 3.0 and
+Swagger 2.0, 3.1 / JSON Schema 2020-12 for 3.1 documents and for fragments), resolving `$ref`s inside
+the pasted text only. The shaper (`JsonComposer`) reads the same pasted text.
+
+- `readOnly` properties are left out of requests (and are not required there), `writeOnly` out of
+  responses. So the same `CustomerSnapshot` schema works for the POST body (no `id`) and for the
+  response (`id` required).
+- **Only declared properties are sent / kept**; add `additionalProperties: true` to pass the rest.
+- `nullable` / `x-nullable`, boolean `exclusiveMinimum`, formats, `allOf` / `oneOf` / `anyOf` are
+  understood; `example`, `xml`, `externalDocs` and other `x-` extensions are ignored. `discriminator`
+  is not enforced (networknt does not, in our tests); the `oneOf` / `anyOf` itself still is.
+- Values are coerced to the declared type (`"12"` → `12`).
+- Path / query / header parameters are taken from the merged sources, else from the **process
+  variable with the same name** (`customerId`), so a pasted parameter list needs no changes.
+
+Where your process data is named or nested differently from the service's schema, add one of our
+extensions to the pasted property (OpenAPI allows `x-` keys):
+
+```yaml
+first: {type: string, x-source: /customer/firstName}     # JSON pointer into the merged sources
+snapshotBy:
+  type: string
+  x-expression: execution.getVariable('initiator')         # Operaton expression, no ${ } wrapper
+```
+
+Plain JSON Schema (draft 2020-12, the OpenAPI 3.1 schema dialect) works too; `user-sync` and
+`user-onboarding` use that form, with `x-in: path | query | header` on params.
+
+Two things to know:
 
 - The engine evaluates every `${...}` inside an input string *before* the connector runs, so a schema
-  must not contain `${...}`. For expressions use `"x-expression": "userId"` (no wrapper).
-- Input values are stored as string variables (limit ~4000 characters); keep schemas compact.
+  must not contain `${...}`. For expressions use `x-expression` (no wrapper).
+- Size: with this app's history level `activity` the inputs never reach the history tables, so a
+  whole document (`PastedOpenApiDocumentTest` pastes 5.5 KB) works. With history level `audit` /
+  `full` the engine stores every input in history and fails on more than 4000 characters; paste
+  only the needed part then.
 
-`ModelPortabilityTest` checks both. The JSON files in `src/test/resources/schemas` are test fixtures
-(the same schemas as inlined in the sample models).
+`ModelPortabilityTest` checks that every schema in the models parses and compiles. The mock's API is
+described in `mock/openapi/customer-api.yaml` (served as `GET /openapi.yaml`); the customer-snapshot
+schemas are pasted from it. The JSON files in `src/test/resources/schemas` are test fixtures.
+
+Checked against a real third-party description too: the **Swagger Petstore** (OpenAPI 3.0 and
+Swagger 2.0, unmodified, `src/test/resources/openapi`). `PetstoreMergeTest` merges two inputs into
+its nested `Pet` (`category` → `Category`, `tags[]` → `Tag`) for both documents, referenced by
+component and by `POST /pet`; `PetstoreProcessTest` does the same in a BPMN task on the engine with
+the whole 17 KB document pasted. For a JSON document, name the target by adding the key in front:
+`{"$ref": "#/paths/~1pet/post", "openapi": "3.0.4", ...}`.
 
 ## Modeler templates
 
@@ -82,10 +207,18 @@ The models use the Camunda 7 namespace (`xmlns:camunda="http://camunda.org/schem
 **Miragon VS Code BPMN Modeler** (both only recognise Camunda namespaces) and Operaton Modeler. The
 Operaton engine runs the `camunda:` namespace as is.
 
-Operaton Modeler converts the file to the `operaton:` namespace when it saves. The engine runs that
-too (`UserSyncProcessTest.runsOperatonNamespaceCopy`), but run `scripts/make-portable.py` afterwards:
-it converts the file back to `camunda:`. `ModelPortabilityTest` fails if a model uses the Operaton
-namespace.
+**One file for both Operaton Modeler and Camunda Modeler.** Operaton Modeler opens `camunda:` files
+and shows everything (it maps `camunda:` to `operaton:` on import), but on **save** it always writes
+`operaton:` and `executionPlatform="Operaton"`, which Camunda Modeler / the VS Code extension then
+cannot show. The engine runs either form (`UserSyncProcessTest.runsOperatonNamespaceCopy`), so the
+fix is only about the Modelers: `scripts/make-portable.py` converts an Operaton Modeler save back to
+the committed `camunda:` form (same content, only `exporter` differs). Let git do it on every commit:
+
+```bash
+git config core.hooksPath scripts/git-hooks   # once per clone: pre-commit runs make-portable.py
+```
+
+`ModelPortabilityTest` fails the build if a model still has the Operaton namespace or metadata.
 
 Both Camunda Modeler and the VS Code extension find the templates in `.camunda/element-templates`
 (in VS Code, open the project folder as the workspace).
@@ -110,20 +243,22 @@ Arrays → repeated query params; nested objects → `name.child=value`.
 
 ## Authentication (JWT)
 
-Set the `jwt` input to the name of the process variable that holds the token:
+Nothing to configure on the tasks: the connector reads the token from the **execution variable
+`accessToken`** (set it when starting the process) and sends `Authorization: Bearer <token>` on every
+call (a value that already starts with `Bearer ` is accepted). It replaces any `Authorization` from
+`headers` or params. The variable name is an app setting:
 
-```xml
-<camunda:inputParameter name="jwt">accessToken</camunda:inputParameter>
+```yaml
+rest-connector:
+  jwt-variable: accessToken     # empty: never send a token
 ```
-
-The connector reads the variable when the task runs and sends `Authorization: Bearer <token>`
-(a value that already starts with `Bearer ` is accepted). It replaces any `Authorization` from
-`headers` or the params schema.
 
 - Pass the token as a normal start variable (`examples/start-customer-snapshot.json`):
   `"accessToken": {"value": "eyJ..."}`.
-- Missing or empty variable → exception (incident). Server says 401 / 403 → `BpmnError HTTP_401` /
-  `HTTP_403`, catch it with an error boundary event. The token is never logged.
+- No `accessToken` variable → no Authorization header (for APIs without auth); a protected API then
+  answers 401 → `BpmnError HTTP_401`. An empty or malformed value → exception (incident).
+  401 / 403 → `BpmnError HTTP_401` / `HTTP_403`, catch it with an error boundary event or the error
+  subprocess. The token is never logged.
 
 ### No variables in history, none left after completion
 
@@ -150,7 +285,7 @@ existing database created with another level, the engine refuses to start (histo
 update `ACT_GE_PROPERTY` `historyLevel` (`1` = activity) or use a fresh schema. Instances that ran with a higher level earlier still have their variables in history;
 remove those with history cleanup / `historyService.deleteHistoricProcessInstances`.
 
-`user-sync` and `customer-snapshot` use `jwt = accessToken` on every REST task; the nginx mock
+`user-sync` and `customer-snapshot` are started with `accessToken`; the nginx mock
 answers 401 on the customer endpoints without a `Bearer header.payload.signature` token
 (`CustomerSnapshotNginxTest`).
 
@@ -161,9 +296,36 @@ answers 401 on the customer endpoints without a `Bearer header.payload.signature
 | request does not match schema | `BpmnError REQUEST_INVALID` |
 | response does not match schema | `BpmnError RESPONSE_INVALID` |
 | HTTP 4xx | `BpmnError HTTP_<status>` (catch with an error boundary event, e.g. `HTTP_404`) |
-| HTTP 5xx, timeout, I/O | exception → incident (use async-before + retries for automatic retry) |
+| HTTP 5xx, timeout, I/O | `technicalErrors` = `exception` (default): exception → incident (use async-before + retries for automatic retry). `technicalErrors` = `bpmnError`: `BpmnError HTTP_<5xx>` / `CONNECTION_FAILED` |
+| missing source variable, malformed token, bad input value or schema | exception (a modelling mistake, never a BPMN error) |
+
+### Error handling in the sample models
+
+All three models set `technicalErrors = bpmnError` on every REST task and have one interrupting
+**error event subprocess** "Handle REST errors": an error start event without an error code (catches
+every BPMN error of the process, also from the 5 parallel GETs) stores `errorCode` / `errorMessage`,
+and a gateway ends the instance at
+
+| end event | errorCode |
+|---|---|
+| `errEndAuth` Not authorized | `HTTP_401`, `HTTP_403` |
+| `errEndNotFound` Not found | `HTTP_404` |
+| `errEndInvalid` Invalid data | `REQUEST_INVALID`, `RESPONSE_INVALID` |
+| `errEndUnavailable` Service unavailable | `HTTP_5xx`, `CONNECTION_FAILED` |
+| `errEndRejected` Request rejected (default) | any other `HTTP_4xx` |
+
+A boundary event on a task still takes precedence (`HTTP_404` on the first GET of user-sync /
+user-onboarding). Callers get `errorCode` / `errorMessage` with `withVariablesInReturn`; history shows
+which end event was reached. `CustomerSnapshotErrorsTest` runs every path against the nginx mock.
 
 See `src/main/resources/bpmn/user-sync.bpmn` and `UserSyncProcessTest` for GET → PUT → UPDATE → DELETE end to end.
+
+## Cockpit
+
+The app includes the Operaton web apps (`operaton-bpm-spring-boot-starter-webapp`): Cockpit, Tasklist
+and Admin at `http://localhost:8080/operaton/app/`, login `demo` / `demo`. Cockpit shows running
+instances, where their tokens wait and their runtime variables (the GET results are JSON object
+variables). Completed instances keep no variables (history level `activity`).
 
 ## nginx mock service
 
@@ -176,10 +338,12 @@ See `src/main/resources/bpmn/user-sync.bpmn` and `UserSyncProcessTest` for GET �
 | `PATCH /api/users/{id}/preferences` | applies `theme / smsEnabled / pushEnabled / updatedBy`, 204 |
 | `DELETE /api/users/{id}/sessions` | 204 (404 for unknown user) |
 | `POST /api/contacts` | 201 `{id, ...body}` |
-| `GET /api/customers/501/{resource}` | needs `Authorization: Bearer <jwt>` (else 401). 10 different objects: profile, contact, address, preferences, account, orders, loyalty, billing, shipping, consents |
+| `GET /api/customers/501/{resource}` | needs `Authorization: Bearer <jwt>` (else 401). 10 different objects (the model uses 5): profile, contact, address, preferences, account, orders, loyalty, billing, shipping, consents |
 | `POST /api/customer-snapshots` | needs `Authorization: Bearer <jwt>` (else 401). 201 `{id, ...body}` |
+| `GET /openapi.yaml` | the API description (`mock/openapi/customer-api.yaml`), to copy schemas from |
 | `GET /__mock/calls` | every request received (method, uri, args, headers, body) |
-| `DELETE /__mock/calls` | resets all state |
+| `DELETE /__mock/calls` | resets all state (and faults) |
+| `PUT /__mock/faults` | `{"method":"POST","uri":"/api/customer-snapshots","status":503,"body":{...}}`: later matching requests get that answer (fault injection) |
 
 Run it by hand and drive the `user-onboarding` model through the engine REST API:
 
@@ -195,17 +359,20 @@ curl localhost:8081/__mock/calls                  # see what the connectors sent
 (Docker required), the test runs `user-onboarding.bpmn`
 (GET → PUT → UPDATE → POST (x-flatten) → DELETE → GET) and asserts on the recorded calls.
 
-## Fan-out example: 10 GETs → 1 POST
+## Fan-out example: 5 GETs → 1 POST
 
-`src/main/resources/bpmn/customer-snapshot.bpmn`: a parallel gateway runs 10 REST GET tasks
-(`/api/customers/{customerId}/profile`, `contact`, `address`, `preferences`, `account`, `orders`,
-`loyalty`, `billing`, `shipping`, `consents`). Each stores its response in its own variable. After the
-join, REST POST uses
+`src/main/resources/bpmn/customer-snapshot.bpmn`: a parallel gateway runs 5 REST GET tasks
+(`/api/customers/{customerId}/profile`, `contact`, `address`, `account`, `loyalty`). Each stores its
+response in its own variable. After the join, REST POST uses
 
-    sources = profile, contact, address, preferences, account, orders, loyalty, billing, shipping, consents
+    sources = profile, contact, address, account, loyalty
 
-so the 10 objects are deep-merged in that order (later wins, independent of which GET finished first).
-The inline body schema then builds the snapshot: `x-source` pointers rename / re-nest fields
-(`/customer/firstName` → `name.first`), `additionalProperties: false` drops noise (`_links`, card
-tokens, …) and types are coerced (`"1534.50"` → `1534.5`). Fixture copy of the schema:
+so the 5 objects are deep-merged in that order (later wins, independent of which GET finished first:
+`loyalty` carries `account.tier: platinum`, which overrides `gold` from `account`).
+The body schema is the `CustomerSnapshot` schema pasted (YAML) from the mock's
+`customer-api.yaml` with its components; added are only the `$ref` line and `x-source` pointers that
+rename / re-nest fields (`/customer/firstName` → `name.first`). Undeclared fields are dropped
+(`_links`, `internalNotes`, `geo`, `openedAt`, …) and the readOnly `id` is not sent. The response
+schema is the same paste without the additions, so the response must carry an `id` like `s-1`.
+The GET tasks paste the operation's `parameters` unchanged; `customerId` comes from the process variable. Fixture copy of the schema:
 `src/test/resources/schemas/customer-snapshot.schema.json`. Manual run: `examples/start-customer-snapshot.json`.

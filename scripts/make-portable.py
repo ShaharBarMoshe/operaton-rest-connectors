@@ -37,6 +37,7 @@ BPMN = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 OPERATON = "http://operaton.org/schema/1.0/bpmn"
 CAMUNDA = "http://camunda.org/schema/1.0/bpmn"
 MODELER = "http://camunda.org/schema/modeler/1.0"
+OPERATON_MODELER = "http://operaton.org/schema/modeler/1.0"   # Operaton Modeler's metadata on save
 # tells Camunda Modeler / the Miragon VS Code modeler that this is a Camunda 7 diagram
 PLATFORM = {f"{{{MODELER}}}executionPlatform": "Camunda Platform",
             f"{{{MODELER}}}executionPlatformVersion": "7.24.0"}
@@ -134,7 +135,8 @@ def link(task, info):
 
 
 def to_camunda(root):
-    """operaton:* -> camunda:* (same elements, other namespace) and set the execution platform."""
+    """operaton:* -> camunda:* (same elements, other namespace) and set the execution platform
+    (also undoes what an Operaton Modeler save does: operaton: namespace + platform "Operaton")."""
     old, changed = f"{{{OPERATON}}}", False
     for el in root.iter():
         if isinstance(el.tag, str) and el.tag.startswith(old):
@@ -143,6 +145,9 @@ def to_camunda(root):
         for key in [k for k in el.attrib if k.startswith(old)]:
             el.attrib[f"{{{CAMUNDA}}}{key[len(old):]}"] = el.attrib.pop(key)
             changed = True
+    for key in [k for k in root.attrib if k.startswith(f"{{{OPERATON_MODELER}}}")]:
+        del root.attrib[key]                # executionPlatform="Operaton" would hide the camunda: properties
+        changed = True
     for key, value in PLATFORM.items():
         if root.get(key) is None:
             root.set(key, value)

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Keeps committed BPMN models openable in Camunda Modeler, the Miragon VS Code modeler AND
+# Operaton Modeler: an Operaton Modeler save rewrites camunda: -> operaton:, this converts it back
+# (and adds missing connector inputs / documentation) before the commit is made.
+# Enable once per clone:  git config core.hooksPath scripts/git-hooks
+files=$(git diff --cached --name-only --diff-filter=ACM -- 'src/main/resources/bpmn/*.bpmn')
+[ -z "$files" ] && exit 0
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "pre-commit: python3 not found, cannot run scripts/make-portable.py" >&2
+  exit 1
+fi
+# shellcheck disable=SC2086
+python3 scripts/make-portable.py $files || exit 1
+# shellcheck disable=SC2086
+git add $files

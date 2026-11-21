@@ -1,10 +1,10 @@
-package com.example.operaton;
+package com.example.operaton.process;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.example.operaton.rest.JsonComposerTest;
+import com.example.operaton.connector.schema.JsonComposerTest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -47,6 +47,9 @@ class UserSyncProcessTest {
       record(req, null);
       if (id == 404) {
         return ResponseEntity.status(404).body("{\"message\":\"no such user\"}");
+      }
+      if (id == 500) {
+        return ResponseEntity.status(500).body("{\"message\":\"database down\"}");
       }
       JsonNode user = MAPPER.readTree(JsonComposerTest.OBJECT_1);
       ((com.fasterxml.jackson.databind.node.ObjectNode) user.get("user")).put("internalScore", 99); // stripped by responseSchema
@@ -111,6 +114,21 @@ class UserSyncProcessTest {
     runSync("user-sync-operaton", "Bearer " + TOKEN); // a "Bearer " prefix in the variable is not doubled
   }
 
+  @Test
+  void http500EndsInErrorSubprocess() {
+    ProcessInstanceWithVariables pi = runtimeService.createProcessInstanceByKey("user-sync").setVariables(Map.of(
+        "apiBaseUrl", "http://localhost:" + port + "/fake-api",
+        "userId", 500,
+        "accessToken", TOKEN,
+        "userChanges", JsonComposerTest.OBJECT_2)).executeWithVariablesInReturn();
+
+    assertThat(CALLS).extracting(Call::method).containsExactly("GET");
+    assertThat(StoredVariables.plain(pi.getVariables())).containsEntry("errorCode", "HTTP_500");
+    assertThat((String) StoredVariables.plain(pi.getVariables()).get("errorMessage")).contains("database down");
+    assertThat(StoredVariables.endEvent(historyService, pi.getId())).isEqualTo("errEndUnavailable");
+    StoredVariables.assertNone(runtimeService, historyService, pi.getId());
+  }
+
   private void runSync(String processKey, String accessToken) throws Exception {
     ProcessInstanceWithVariables pi = runtimeService.createProcessInstanceByKey(processKey).setVariables(Map.of(
         "apiBaseUrl", "http://localhost:" + port + "/fake-api",
@@ -146,13 +164,12 @@ class UserSyncProcessTest {
     assertThat(delete.query()).isEqualTo("reason=profile%20updated");
     assertThat(delete.body()).isNull();
 
-    Map<String, Object> vars = pi.getVariables();
+    Map<String, Object> vars = StoredVariables.plain(pi.getVariables());
     assertThat(vars).containsEntry("putStatus", 200).containsEntry("deleteStatus", 204);
     @SuppressWarnings("unchecked")
     Map<String, Object> currentUser = (Map<String, Object>) ((Map<String, Object>) vars.get("currentUser")).get("user");
     assertThat(currentUser).containsEntry("id", 1042).doesNotContainKey("internalScore");
-    assertThat(historyService.createHistoricProcessInstanceQuery().processInstanceId(pi.getId()).singleResult()
-        .getEndActivityId()).isEqualTo("end");
+    assertThat(StoredVariables.endEvent(historyService, pi.getId())).isEqualTo("end");
     StoredVariables.assertNone(runtimeService, historyService, pi.getId());
   }
 
@@ -165,8 +182,7 @@ class UserSyncProcessTest {
         "userChanges", JsonComposerTest.OBJECT_2));
 
     assertThat(CALLS).extracting(Call::method).containsExactly("GET");
-    assertThat(historyService.createHistoricProcessInstanceQuery().processInstanceId(pi.getId()).singleResult()
-        .getEndActivityId()).isEqualTo("endNotFound");
+    assertThat(StoredVariables.endEvent(historyService, pi.getId())).isEqualTo("endNotFound");
     StoredVariables.assertNone(runtimeService, historyService, pi.getId());
   }
 

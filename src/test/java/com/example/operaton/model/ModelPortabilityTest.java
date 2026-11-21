@@ -1,9 +1,13 @@
-package com.example.operaton;
+package com.example.operaton.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.operaton.connector.schema.JsonComposer;
+import com.example.operaton.connector.schema.OpenApiSchemaCompiler;
+import com.example.operaton.connector.schema.SchemaCompiler;
+import com.example.operaton.connector.schema.SchemaUse;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +30,8 @@ import org.operaton.bpm.model.bpmn.instance.operaton.OperatonInputParameter;
  * Fix failures with: scripts/make-portable.py
  */
 class ModelPortabilityTest {
+
+  private static final SchemaCompiler SCHEMAS = new OpenApiSchemaCompiler(new JsonComposer(new ObjectMapper()));
 
   static final String FIX = " -> run scripts/make-portable.py";
 
@@ -55,7 +61,7 @@ class ModelPortabilityTest {
   void usesCamundaNamespace(Path model) throws Exception {
     String xml = Files.readString(model);
     assertThat(xml).as(model.getFileName() + " uses the Operaton namespace, which Camunda Modeler / VS Code modelers do not show" + FIX)
-        .doesNotContain("http://operaton.org/schema/1.0/bpmn")
+        .doesNotContain("http://operaton.org/schema/1.0/bpmn", "http://operaton.org/schema/modeler/1.0")
         .contains("xmlns:camunda=\"http://camunda.org/schema/1.0/bpmn\"")
         .contains("modeler:executionPlatform=\"Camunda Platform\"");
   }
@@ -86,15 +92,20 @@ class ModelPortabilityTest {
               .map(OperatonInputParameter::getOperatonName).toList();
       assertThat(actual).as(where + " is missing connector inputs" + FIX).containsAll(expected);
 
-      // schema inputs: inline JSON, and no ${..} (the engine would evaluate it before the connector runs)
+      // schema inputs: pasted OpenAPI / JSON Schema (JSON or YAML) that compiles, and no ${..}
+      // (the engine would evaluate it before the connector runs)
       for (OperatonInputParameter p : task.getExtensionElements().getElementsQuery()
           .filterByType(org.operaton.bpm.model.bpmn.instance.operaton.OperatonInputOutput.class).singleResult()
           .getOperatonInputParameters()) {
         String text = p.getTextContent() == null ? "" : p.getTextContent().trim();
         if (!p.getOperatonName().endsWith("Schema") || text.isEmpty()) continue;
-        assertThat(text).as(where + " " + p.getOperatonName() + " must be an inline JSON schema, not a path").startsWith("{");
         assertThat(text).as(where + " " + p.getOperatonName() + " contains ${..}; use \"x-expression\"").doesNotContain("${", "#{");
-        new ObjectMapper().readTree(text); // valid JSON
+        SchemaUse use = switch (p.getOperatonName()) {
+          case "paramsSchema" -> SchemaUse.PARAMS;
+          case "responseSchema" -> SchemaUse.RESPONSE;
+          default -> SchemaUse.REQUEST;
+        };
+        SCHEMAS.compile(text, use); // parses + converts + compiles, throws on errors
       }
     }
     assertThat(connectorTasks).as(model.getFileName() + ": no REST connector task found").isPositive();

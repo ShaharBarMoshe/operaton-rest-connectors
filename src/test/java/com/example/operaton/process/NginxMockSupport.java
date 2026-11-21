@@ -1,4 +1,4 @@
-package com.example.operaton;
+package com.example.operaton.process;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,6 +22,7 @@ abstract class NginxMockSupport {
   static final GenericContainer<?> NGINX = new GenericContainer<>("nginx:1.29.3-alpine")
       .withCopyFileToContainer(MountableFile.forHostPath("mock/nginx/nginx.conf"), "/etc/nginx/nginx.conf")
       .withCopyFileToContainer(MountableFile.forHostPath("mock/nginx/njs/mock.js"), "/etc/nginx/njs/mock.js")
+      .withCopyFileToContainer(MountableFile.forHostPath("mock/openapi/customer-api.yaml"), "/etc/nginx/openapi/customer-api.yaml")
       .withExposedPorts(8080)
       .waitingFor(Wait.forHttp("/health").forStatusCode(200));
 
@@ -50,9 +51,9 @@ abstract class NginxMockSupport {
     return MAPPER.readTree(mock.get().uri("/__mock/calls").retrieve().body(String.class));
   }
 
+  /** The end event the instance finished at (also inside the error event subprocess). */
   String endActivity(ProcessInstance pi) {
-    return historyService.createHistoricProcessInstanceQuery().processInstanceId(pi.getId())
-        .singleResult().getEndActivityId();
+    return StoredVariables.endEvent(historyService, pi.getId());
   }
 
   /**
@@ -65,10 +66,10 @@ abstract class NginxMockSupport {
   }
 
   Map<String, Object> variables(ProcessInstanceWithVariables pi) {
-    return new HashMap<>(pi.getVariables());
+    return StoredVariables.plain(pi.getVariables());
   }
 
-  /** Nothing of the instance's variables (jwt included) is left in runtime or history tables. */
+  /** Nothing of the instance's variables (the token included) is left in runtime or history tables. */
   void assertNoVariablesStored(ProcessInstance pi) {
     StoredVariables.assertNone(runtimeService, historyService, pi.getId());
   }

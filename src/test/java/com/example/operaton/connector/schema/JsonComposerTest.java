@@ -1,8 +1,9 @@
-package com.example.operaton.rest;
+package com.example.operaton.connector.schema;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.operaton.connector.http.params.HttpRequestParams;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -28,14 +29,14 @@ public class JsonComposerTest {
         "roles":["editor","reviewer"]}}""";
 
   final JsonComposer composer = new JsonComposer(new ObjectMapper());
-  final JsonSchemaService schemas = new JsonSchemaService(composer);
+  final SchemaCompiler schemas = new OpenApiSchemaCompiler(composer);
 
   @Test
   void mergesObjectsIntoBodyDescribedBySchema() {
-    var schema = schemas.load(TestSchemas.read("schemas/merged-user.schema.json"));
+    var schema = schemas.compile(TestSchemas.read("schemas/merged-user.schema.json"), SchemaUse.REQUEST);
     JsonNode merged = composer.merge(List.of(OBJECT_1, OBJECT_2));
 
-    JsonNode body = composer.shape(schema.node(), merged, null);
+    JsonNode body = composer.shape(schema, merged, null);
     schemas.validate(schema, body, "body");
 
     assertThat(body).isEqualTo(composer.parse(EXPECTED_BODY));
@@ -43,10 +44,10 @@ public class JsonComposerTest {
 
   @Test
   void dropsUnknownFieldsAndCoercesTypes() {
-    var schema = schemas.load(TestSchemas.read("schemas/merged-user.schema.json"));
+    var schema = schemas.compile(TestSchemas.read("schemas/merged-user.schema.json"), SchemaUse.REQUEST);
     Map<String, Object> extra = Map.of("user", Map.of("id", "1042", "internalScore", 99), "debug", true);
 
-    JsonNode body = composer.shape(schema.node(), composer.merge(List.of(OBJECT_1, OBJECT_2, extra)), null);
+    JsonNode body = composer.shape(schema, composer.merge(List.of(OBJECT_1, OBJECT_2, extra)), null);
 
     assertThat(body.at("/user/id").isInt()).isTrue();
     assertThat(body.at("/user/internalScore").isMissingNode()).isTrue();
@@ -55,8 +56,8 @@ public class JsonComposerTest {
 
   @Test
   void rejectsBodyThatViolatesSchema() {
-    var schema = schemas.load(TestSchemas.read("schemas/merged-user.schema.json"));
-    JsonNode body = composer.shape(schema.node(), composer.merge(List.of(OBJECT_2)), null); // no id / name / email
+    var schema = schemas.compile(TestSchemas.read("schemas/merged-user.schema.json"), SchemaUse.REQUEST);
+    JsonNode body = composer.shape(schema, composer.merge(List.of(OBJECT_2)), null); // no id / name / email
 
     assertThatThrownBy(() -> schemas.validate(schema, body, "body"))
         .isInstanceOf(SchemaViolationException.class)
@@ -67,24 +68,24 @@ public class JsonComposerTest {
 
   @Test
   void rejectsSchemaGivenAsPath() {
-    assertThatThrownBy(() -> schemas.load("schemas/merged-user.schema.json"))
+    assertThatThrownBy(() -> schemas.compile("schemas/merged-user.schema.json", SchemaUse.REQUEST))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("inline JSON object");
+        .hasMessageContaining("must be a JSON / YAML object");
   }
 
   @Test
   void xExpressionIsEvaluatedWithoutDollarBraceInTheSchema() {
-    var schema = schemas.load("{\"type\":\"object\",\"properties\":{\"by\":{\"type\":\"string\",\"x-expression\":\"initiator\"}}}");
-    JsonNode shaped = composer.shape(schema.node(), List.of(), expr -> "${initiator}".equals(expr) ? "maya" : null);
+    var schema = schemas.compile("{\"type\":\"object\",\"properties\":{\"by\":{\"type\":\"string\",\"x-expression\":\"initiator\"}}}", SchemaUse.REQUEST);
+    JsonNode shaped = composer.shape(schema, List.of(), expr -> "${initiator}".equals(expr) ? "maya" : null);
     assertThat(shaped).isEqualTo(composer.parse("{\"by\":\"maya\"}"));
   }
 
   @Test
   void buildsGetParamsFromSchema() {
-    var schema = schemas.load(TestSchemas.read("schemas/get-user.params.schema.json"));
+    var schema = schemas.compile(TestSchemas.read("schemas/get-user.params.schema.json"), SchemaUse.PARAMS);
     JsonNode merged = composer.merge(List.of(OBJECT_2));
 
-    JsonNode shaped = composer.shape(schema.node(), merged, expr -> "${userId}".equals(expr) ? "1042" : null);
+    JsonNode shaped = composer.shape(schema, merged, expr -> "${userId}".equals(expr) ? "1042" : null);
     schemas.validate(schema, shaped, "params");
     HttpRequestParams params = HttpRequestParams.from(schema.node(), shaped);
 

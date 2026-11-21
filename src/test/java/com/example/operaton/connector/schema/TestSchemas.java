@@ -1,4 +1,4 @@
-package com.example.operaton.rest;
+package com.example.operaton.connector.schema;
 
 import java.io.IOException;
 import java.io.InputStream;

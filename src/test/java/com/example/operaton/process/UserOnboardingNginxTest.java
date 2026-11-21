@@ -1,9 +1,9 @@
-package com.example.operaton;
+package com.example.operaton.process;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.operaton.spin.Spin.JSON;
 
-import com.example.operaton.rest.JsonComposerTest;
+import com.example.operaton.connector.schema.JsonComposerTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.HashMap;
 import java.util.Map;
@@ -86,4 +86,19 @@ class UserOnboardingNginxTest extends NginxMockSupport {
     assertThat(endActivity(pi)).isEqualTo("onbEndNotFound");
   }
 
+
+  @Test
+  void rejectedPatchEndsInErrorSubprocess() throws Exception {
+    mock.put().uri("/__mock/faults").contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+        .body("{\"method\":\"PATCH\",\"uri\":\"/api/users/1042/preferences\",\"status\":422,"
+            + "\"body\":{\"message\":\"theme not allowed\"}}").retrieve().toBodilessEntity();
+
+    ProcessInstanceWithVariables pi = start(1042);
+
+    assertThat(endActivity(pi)).isEqualTo("errEndRejected");
+    assertThat(variables(pi)).containsEntry("errorCode", "HTTP_422");
+    JsonNode calls = calls();
+    assertThat(calls).extracting(c -> c.get("method").asText()).containsExactly("GET", "PUT", "PATCH");
+    assertNoVariablesStored(pi);
+  }
 }

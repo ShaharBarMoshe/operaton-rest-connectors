@@ -1,4 +1,4 @@
-package com.example.operaton.rest;
+package com.example.operaton.connector.schema;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -10,12 +10,12 @@ import org.junit.jupiter.api.Test;
 class FlattenTest {
 
   final JsonComposer composer = new JsonComposer(new ObjectMapper());
-  final JsonSchemaService schemas = new JsonSchemaService(composer);
+  final SchemaCompiler schemas = new OpenApiSchemaCompiler(composer);
 
   private JsonNode build(String schemaRef, String... sources) {
-    var schema = schemas.load(schemaRef.trim().startsWith("{") ? schemaRef : TestSchemas.read(schemaRef));
+    var schema = schemas.compile(schemaRef.trim().startsWith("{") ? schemaRef : TestSchemas.read(schemaRef), SchemaUse.REQUEST);
     List<JsonNode> nodes = java.util.Arrays.stream(sources).map(composer::parse).toList();
-    JsonNode result = composer.shape(schema.node(), nodes, null);
+    JsonNode result = composer.shape(schema, nodes, null);
     schemas.validate(schema, result, "body");
     return result;
   }
@@ -67,7 +67,8 @@ class FlattenTest {
     JsonNode body = build(schema,
         "{\"customer\":{\"name\":\"a\",\"address\":{\"city\":\"c\",\"geo\":{\"lat\":1.5,\"lng\":2}}}}");
 
+    // geo declares only lat: undeclared lng is not taken over (no additionalProperties: true)
     assertThat(body).isEqualTo(composer.parse(
-        "{\"customer\":{\"name\":\"a\",\"city\":\"c\",\"geo\":{\"lat\":1.5,\"lng\":2}}}"));
+        "{\"customer\":{\"name\":\"a\",\"city\":\"c\",\"geo\":{\"lat\":1.5}}}"));
   }
 }

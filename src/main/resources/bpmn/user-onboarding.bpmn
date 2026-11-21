@@ -24,7 +24,10 @@ Inputs (leave empty when not needed):
 - responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
 - statusVariable: Process variable receiving the HTTP status code.
-- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.
+- mockEnabled: Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.
+- mockStatus: HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -&gt; BPMN error HTTP_404.
+- mockResponse: Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}</camunda:inputParameter>
@@ -78,6 +81,26 @@ Inputs (leave empty when not needed):
           <camunda:inputParameter name="resultVariable">currentUser</camunda:inputParameter>
           <camunda:inputParameter name="statusVariable" />
           <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
+          <camunda:inputParameter name="mockEnabled">${execution.getVariable('useMockData') == true}</camunda:inputParameter>
+          <camunda:inputParameter name="mockStatus">200</camunda:inputParameter>
+          <camunda:inputParameter name="mockResponse">{
+  "user": {
+    "id": 1042,
+    "name": "Maya Lin",
+    "contact": {
+      "email": "maya.lin@example.com",
+      "phone": "+1-555-0192"
+    },
+    "preferences": {
+      "theme": "light",
+      "notifications": {
+        "email": true,
+        "sms": false
+      }
+    },
+    "internalScore": 99
+  }
+}</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o1</bpmn:incoming>
@@ -99,7 +122,10 @@ Inputs (leave empty when not needed):
 - responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
 - statusVariable: Process variable receiving the HTTP status code.
-- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.
+- mockEnabled: Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.
+- mockStatus: HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -&gt; BPMN error HTTP_404.
+- mockResponse: Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}</camunda:inputParameter>
@@ -159,6 +185,30 @@ Inputs (leave empty when not needed):
           <camunda:inputParameter name="resultVariable">updatedUser</camunda:inputParameter>
           <camunda:inputParameter name="statusVariable">putStatus</camunda:inputParameter>
           <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
+          <camunda:inputParameter name="mockEnabled">${execution.getVariable('useMockData') == true}</camunda:inputParameter>
+          <camunda:inputParameter name="mockStatus">200</camunda:inputParameter>
+          <camunda:inputParameter name="mockResponse">{
+  "user": {
+    "id": 1042,
+    "name": "Maya Lin",
+    "contact": {
+      "email": "maya.lin@example.com",
+      "phone": "+1-555-0148"
+    },
+    "preferences": {
+      "theme": "dark",
+      "notifications": {
+        "email": true,
+        "sms": true,
+        "push": true
+      }
+    },
+    "roles": [
+      "editor",
+      "reviewer"
+    ]
+  }
+}</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o2</bpmn:incoming>
@@ -176,7 +226,10 @@ Inputs (leave empty when not needed):
 - responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
 - statusVariable: Process variable receiving the HTTP status code.
-- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.
+- mockEnabled: Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.
+- mockStatus: HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -&gt; BPMN error HTTP_404.
+- mockResponse: Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}/preferences</camunda:inputParameter>
@@ -203,6 +256,9 @@ Inputs (leave empty when not needed):
           <camunda:inputParameter name="resultVariable" />
           <camunda:inputParameter name="statusVariable">patchStatus</camunda:inputParameter>
           <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
+          <camunda:inputParameter name="mockEnabled">${execution.getVariable('useMockData') == true}</camunda:inputParameter>
+          <camunda:inputParameter name="mockStatus">204</camunda:inputParameter>
+          <camunda:inputParameter name="mockResponse" />
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o3</bpmn:incoming>
@@ -221,7 +277,10 @@ Inputs (leave empty when not needed):
 - responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
 - statusVariable: Process variable receiving the HTTP status code.
-- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.
+- mockEnabled: Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.
+- mockStatus: HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -&gt; BPMN error HTTP_404.
+- mockResponse: Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/contacts</camunda:inputParameter>
@@ -239,6 +298,14 @@ Inputs (leave empty when not needed):
           <camunda:inputParameter name="resultVariable">createdContact</camunda:inputParameter>
           <camunda:inputParameter name="statusVariable">postStatus</camunda:inputParameter>
           <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
+          <camunda:inputParameter name="mockEnabled">${execution.getVariable('useMockData') == true}</camunda:inputParameter>
+          <camunda:inputParameter name="mockStatus">201</camunda:inputParameter>
+          <camunda:inputParameter name="mockResponse">{
+  "id": "c-mock-1",
+  "name": "ff",
+  "phone": 89,
+  "city": "khg"
+}</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o4</bpmn:incoming>
@@ -256,7 +323,10 @@ Inputs (leave empty when not needed):
 - responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
 - statusVariable: Process variable receiving the HTTP status code.
-- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.
+- mockEnabled: Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.
+- mockStatus: HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -&gt; BPMN error HTTP_404.
+- mockResponse: Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}/sessions</camunda:inputParameter>
@@ -276,6 +346,9 @@ Inputs (leave empty when not needed):
           <camunda:inputParameter name="resultVariable" />
           <camunda:inputParameter name="statusVariable">deleteStatus</camunda:inputParameter>
           <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
+          <camunda:inputParameter name="mockEnabled">${execution.getVariable('useMockData') == true}</camunda:inputParameter>
+          <camunda:inputParameter name="mockStatus">204</camunda:inputParameter>
+          <camunda:inputParameter name="mockResponse" />
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o5</bpmn:incoming>
@@ -293,7 +366,10 @@ Inputs (leave empty when not needed):
 - responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
 - statusVariable: Process variable receiving the HTTP status code.
-- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.
+- mockEnabled: Test mode: true = do not send the request, answer with Mock status / Mock response instead (the request is still built and validated, the response schema, error mapping and result variables work as for a real call). false or empty = real call. An expression switches it per instance, e.g. ${execution.getVariable('useMockData') == true}.
+- mockStatus: HTTP status the mock answers with (default 200). A 4xx / 5xx tests the error handling, e.g. 404 -&gt; BPMN error HTTP_404.
+- mockResponse: Response body the mock answers with: a JSON object / array (or text); empty = no body. ${expressions} inside are evaluated by the engine, so the mock can echo process variables.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}</camunda:inputParameter>
@@ -328,6 +404,30 @@ Inputs (leave empty when not needed):
           <camunda:inputParameter name="resultVariable">finalUser</camunda:inputParameter>
           <camunda:inputParameter name="statusVariable" />
           <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
+          <camunda:inputParameter name="mockEnabled">${execution.getVariable('useMockData') == true}</camunda:inputParameter>
+          <camunda:inputParameter name="mockStatus">200</camunda:inputParameter>
+          <camunda:inputParameter name="mockResponse">{
+  "user": {
+    "id": 1042,
+    "name": "Maya Lin",
+    "contact": {
+      "email": "maya.lin@example.com",
+      "phone": "+1-555-0148"
+    },
+    "preferences": {
+      "theme": "dark",
+      "notifications": {
+        "email": true,
+        "sms": true,
+        "push": true
+      }
+    },
+    "roles": [
+      "editor",
+      "reviewer"
+    ]
+  }
+}</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o6</bpmn:incoming>

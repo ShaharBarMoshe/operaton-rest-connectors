@@ -1,0 +1,22 @@
+{
+  "variables": {
+    "apiBaseUrl": {
+      "value": "http://localhost:8081/api"
+    },
+    "customerId": {
+      "value": 501,
+      "type": "Integer"
+    },
+    "initiator": {
+      "value": "demo"
+    },
+    "accessToken": {
+      "value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkZW1vIn0.c2lnbmF0dXJl"
+    },
+    "useMockData": {
+      "value": true,
+      "type": "Boolean"
+    }
+  },
+  "withVariablesInReturn": true
+}

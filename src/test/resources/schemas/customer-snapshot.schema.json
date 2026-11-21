@@ -1,0 +1,83 @@
+{
+  "type": "object",
+  "required": ["customerId", "name", "contact", "address", "account", "orders", "loyalty", "consents"],
+  "additionalProperties": false,
+  "properties": {
+    "customerId": {"type": "integer", "x-source": "/customer/id"},
+    "name": {
+      "type": "object",
+      "required": ["first", "last"],
+      "additionalProperties": false,
+      "properties": {
+        "first": {"type": "string", "x-source": "/customer/firstName"},
+        "last": {"type": "string", "x-source": "/customer/lastName"}
+      }
+    },
+    "birthDate": {"type": "string", "format": "date", "x-source": "/customer/birthDate"},
+    "contact": {
+      "type": "object",
+      "required": ["email"],
+      "additionalProperties": false,
+      "properties": {
+        "email": {"type": "string", "format": "email", "x-source": "/customer/email"},
+        "phone": {"type": "string", "x-source": "/customer/phone"}
+      }
+    },
+    "address": {
+      "type": "object",
+      "required": ["city", "country"],
+      "additionalProperties": false,
+      "properties": {
+        "street": {"type": "string"},
+        "city": {"type": "string"},
+        "zip": {"type": "string"},
+        "country": {"type": "string", "minLength": 2, "maxLength": 2}
+      }
+    },
+    "preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "language": {"type": "string"},
+        "currency": {"type": "string"},
+        "newsletter": {"type": "boolean"}
+      }
+    },
+    "account": {
+      "type": "object",
+      "required": ["status", "tier"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {"type": "string", "enum": ["active", "suspended", "closed"]},
+        "tier": {"type": "string", "enum": ["silver", "gold", "platinum"]}
+      }
+    },
+    "orders": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"count": {"type": "integer", "minimum": 0}, "totalSpent": {"type": "number", "minimum": 0}}
+    },
+    "loyalty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"points": {"type": "integer"}, "level": {"type": "string"}}
+    },
+    "billing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"method": {"type": "string"}, "last4": {"type": "string", "pattern": "^[0-9]{4}$"}}
+    },
+    "shipping": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"carrier": {"type": "string", "x-source": "/shipping/preferredCarrier"}}
+    },
+    "consents": {
+      "type": "object",
+      "required": ["marketing", "analytics"],
+      "additionalProperties": false,
+      "properties": {"marketing": {"type": "boolean"}, "analytics": {"type": "boolean"}}
+    },
+    "snapshotBy": {"type": "string", "x-expression": "execution.getVariable('initiator')", "default": "system"}
+  }
+}

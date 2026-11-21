@@ -1,0 +1,6 @@
+{
+  "type": "object",
+  "required": ["userId"],
+  "additionalProperties": false,
+  "properties": {"userId": {"type": "integer", "minimum": 1, "x-in": "path", "x-source": "/user/id"}}
+}

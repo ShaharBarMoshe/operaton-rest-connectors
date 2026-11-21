@@ -1,0 +1,310 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_userSync" targetNamespace="http://example.com/bpmn" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.24.0">
+  <bpmn:error id="Error_404" name="User not found" errorCode="HTTP_404" />
+  <bpmn:process id="user-sync" name="User sync" isExecutable="true" camunda:historyTimeToLive="P30D">
+    <bpmn:startEvent id="start" name="Changes received">
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <!-- GET: request built from paramsSchema (path / query / header), response validated by responseSchema -->
+    <bpmn:serviceTask id="getUser" name="GET user" camunda:delegateExpression="${restGet}">
+      <bpmn:documentation>[REST connector] REST GET - Fetch data: request params built from a JSON Schema; 4xx -&gt; BPMN error HTTP_&lt;status&gt;.
+Implementation: delegateExpression ${restGet}
+Inputs (leave empty when not needed):
+- url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
+- sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
+- paramsSchema: JSON Schema for path / query / header params. Each top-level property is one param: "x-in": path | query | header (default query); arrays repeat, objects flatten to name.child. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
+- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
+- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- resultVariable: Process variable receiving the response body (stored as JSON).
+- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}</camunda:inputParameter>
+          <camunda:inputParameter name="sources">userChanges</camunda:inputParameter>
+          <camunda:inputParameter name="paramsSchema">{
+  "type": "object",
+  "required": ["userId", "X-Tenant"],
+  "additionalProperties": false,
+  "properties": {
+    "userId": {"type": "integer", "minimum": 1, "x-in": "path", "x-expression": "userId"},
+    "fields": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["contact", "preferences", "roles"]},
+      "uniqueItems": true,
+      "x-in": "query",
+      "default": ["contact", "preferences"]
+    },
+    "filter": {
+      "type": "object",
+      "x-in": "query",
+      "additionalProperties": false,
+      "properties": {
+        "theme": {"type": "string", "x-source": "/user/preferences/theme"},
+        "phone": {"type": "string", "x-source": "/user/contact/phone"}
+      }
+    },
+    "X-Tenant": {"type": "string", "x-in": "header", "default": "acme"}
+  }
+}</camunda:inputParameter>
+          <camunda:inputParameter name="headers" />
+          <camunda:inputParameter name="jwt">accessToken</camunda:inputParameter>
+          <camunda:inputParameter name="responseSchema">{
+  "type": "object",
+  "required": ["user"],
+  "additionalProperties": false,
+  "properties": {"user": {"$ref": "#/$defs/user"}},
+  "$defs": {
+    "user": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "integer"},
+        "name": {"type": "string"},
+        "contact": {"type": "object"},
+        "preferences": {"type": "object"},
+        "roles": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}</camunda:inputParameter>
+          <camunda:inputParameter name="resultVariable">currentUser</camunda:inputParameter>
+          <camunda:inputParameter name="statusVariable" />
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="userNotFoundBoundary" attachedToRef="getUser">
+      <bpmn:outgoing>f404</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="Error_404" />
+    </bpmn:boundaryEvent>
+    <!-- PUT: body = deep-merge(currentUser, userChanges) shaped + validated by merged-user schema -->
+    <bpmn:serviceTask id="putUser" name="PUT merged user" camunda:delegateExpression="${restPut}">
+      <bpmn:documentation>[REST connector] REST PUT - Replace a resource: body built from merged sources + JSON Schema.
+Implementation: delegateExpression ${restPut}
+Inputs (leave empty when not needed):
+- url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
+- sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
+- paramsSchema: Optional JSON Schema for path / query / header params ("x-in"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- bodySchema: JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
+- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
+- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- resultVariable: Process variable receiving the response body (stored as JSON).
+- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}</camunda:inputParameter>
+          <camunda:inputParameter name="sources">currentUser, userChanges</camunda:inputParameter>
+          <camunda:inputParameter name="paramsSchema">{
+  "type": "object",
+  "required": ["userId"],
+  "additionalProperties": false,
+  "properties": {"userId": {"type": "integer", "minimum": 1, "x-in": "path", "x-source": "/user/id"}}
+}</camunda:inputParameter>
+          <camunda:inputParameter name="bodySchema">{
+  "type": "object",
+  "required": ["user"],
+  "additionalProperties": false,
+  "properties": {
+    "user": {
+      "type": "object",
+      "required": ["id", "name", "contact", "preferences"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "integer", "minimum": 1},
+        "name": {"type": "string", "minLength": 1},
+        "contact": {
+          "type": "object",
+          "required": ["email", "phone"],
+          "additionalProperties": false,
+          "properties": {
+            "email": {"type": "string", "format": "email"},
+            "phone": {"type": "string", "minLength": 5}
+          }
+        },
+        "preferences": {
+          "type": "object",
+          "required": ["theme", "notifications"],
+          "additionalProperties": false,
+          "properties": {
+            "theme": {"type": "string", "enum": ["light", "dark", "system"]},
+            "notifications": {
+              "type": "object",
+              "required": ["email", "sms"],
+              "additionalProperties": false,
+              "properties": {
+                "email": {"type": "boolean"},
+                "sms": {"type": "boolean"},
+                "push": {"type": "boolean"}
+              }
+            }
+          }
+        },
+        "roles": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    }
+  }
+}</camunda:inputParameter>
+          <camunda:inputParameter name="headers" />
+          <camunda:inputParameter name="jwt">accessToken</camunda:inputParameter>
+          <camunda:inputParameter name="responseSchema" />
+          <camunda:inputParameter name="resultVariable">updatedUser</camunda:inputParameter>
+          <camunda:inputParameter name="statusVariable">putStatus</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>f3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <!-- UPDATE (PATCH): flat body picked out of the merged object via x-source pointers -->
+    <bpmn:serviceTask id="patchPreferences" name="UPDATE preferences" camunda:delegateExpression="${restUpdate}">
+      <bpmn:documentation>[REST connector] REST UPDATE (PATCH) - Partially update a resource: body built from merged sources + JSON Schema.
+Implementation: delegateExpression ${restUpdate}
+Inputs (leave empty when not needed):
+- url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
+- sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
+- paramsSchema: Optional JSON Schema for path / query / header params ("x-in"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- bodySchema: JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
+- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
+- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- resultVariable: Process variable receiving the response body (stored as JSON).
+- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}/preferences</camunda:inputParameter>
+          <camunda:inputParameter name="sources">updatedUser</camunda:inputParameter>
+          <camunda:inputParameter name="paramsSchema">{
+  "type": "object",
+  "required": ["userId"],
+  "additionalProperties": false,
+  "properties": {"userId": {"type": "integer", "minimum": 1, "x-in": "path", "x-source": "/user/id"}}
+}</camunda:inputParameter>
+          <camunda:inputParameter name="bodySchema">{
+  "type": "object",
+  "required": ["theme"],
+  "additionalProperties": false,
+  "properties": {
+    "theme": {"type": "string", "enum": ["light", "dark", "system"], "x-source": "/user/preferences/theme"},
+    "smsEnabled": {"type": "boolean", "x-source": "/user/preferences/notifications/sms"},
+    "pushEnabled": {"type": "boolean", "x-source": "/user/preferences/notifications/push", "default": false},
+    "updatedBy": {"type": "string", "x-expression": "execution.getVariable('initiator')"}
+  }
+}</camunda:inputParameter>
+          <camunda:inputParameter name="headers">{"X-Correlation-Id": "${execution.processInstanceId}"}</camunda:inputParameter>
+          <camunda:inputParameter name="jwt">accessToken</camunda:inputParameter>
+          <camunda:inputParameter name="responseSchema" />
+          <camunda:inputParameter name="resultVariable" />
+          <camunda:inputParameter name="statusVariable" />
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f3</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <!-- DELETE: path + query params only, no body -->
+    <bpmn:serviceTask id="deleteSessions" name="DELETE sessions" camunda:delegateExpression="${restDelete}">
+      <bpmn:documentation>[REST connector] REST DELETE - Delete a resource: path / query params built from a JSON Schema.
+Implementation: delegateExpression ${restDelete}
+Inputs (leave empty when not needed):
+- url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
+- sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
+- paramsSchema: JSON Schema for path / query / header params. Each top-level property is one param: "x-in": path | query | header (default query); arrays repeat, objects flatten to name.child. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- bodySchema: Only if the API expects a DELETE body: JSON Schema that builds + validates it. Usually empty. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
+- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
+- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- resultVariable: Process variable receiving the response body (stored as JSON).
+- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}/sessions</camunda:inputParameter>
+          <camunda:inputParameter name="sources">updatedUser</camunda:inputParameter>
+          <camunda:inputParameter name="paramsSchema">{
+  "type": "object",
+  "required": ["userId"],
+  "additionalProperties": false,
+  "properties": {
+    "userId": {"type": "integer", "minimum": 1, "x-in": "path", "x-source": "/user/id"},
+    "reason": {"type": "string", "x-in": "query", "x-expression": "execution.getVariable('deleteReason')"}
+  }
+}</camunda:inputParameter>
+          <camunda:inputParameter name="bodySchema" />
+          <camunda:inputParameter name="headers" />
+          <camunda:inputParameter name="jwt">accessToken</camunda:inputParameter>
+          <camunda:inputParameter name="responseSchema" />
+          <camunda:inputParameter name="resultVariable" />
+          <camunda:inputParameter name="statusVariable">deleteStatus</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f4</bpmn:incoming>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end" name="User synced">
+      <bpmn:incoming>f5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endNotFound" name="User not found">
+      <bpmn:incoming>f404</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="getUser" />
+    <bpmn:sequenceFlow id="f2" sourceRef="getUser" targetRef="putUser" />
+    <bpmn:sequenceFlow id="f3" sourceRef="putUser" targetRef="patchPreferences" />
+    <bpmn:sequenceFlow id="f4" sourceRef="patchPreferences" targetRef="deleteSessions" />
+    <bpmn:sequenceFlow id="f5" sourceRef="deleteSessions" targetRef="end" />
+    <bpmn:sequenceFlow id="f404" sourceRef="userNotFoundBoundary" targetRef="endNotFound" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_userSync">
+    <bpmndi:BPMNPlane id="Plane_userSync" bpmnElement="user-sync">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="getUser_di" bpmnElement="getUser">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="userNotFoundBoundary_di" bpmnElement="userNotFoundBoundary">
+        <dc:Bounds x="272" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="putUser_di" bpmnElement="putUser">
+        <dc:Bounds x="400" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="patchPreferences_di" bpmnElement="patchPreferences">
+        <dc:Bounds x="560" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="deleteSessions_di" bpmnElement="deleteSessions">
+        <dc:Bounds x="720" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_di" bpmnElement="end">
+        <dc:Bounds x="882" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endNotFound_di" bpmnElement="endNotFound">
+        <dc:Bounds x="382" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f1_di" bpmnElement="f1">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f2_di" bpmnElement="f2">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="400" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f3_di" bpmnElement="f3">
+        <di:waypoint x="500" y="120" />
+        <di:waypoint x="560" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f4_di" bpmnElement="f4">
+        <di:waypoint x="660" y="120" />
+        <di:waypoint x="720" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f5_di" bpmnElement="f5">
+        <di:waypoint x="820" y="120" />
+        <di:waypoint x="882" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f404_di" bpmnElement="f404">
+        <di:waypoint x="290" y="178" />
+        <di:waypoint x="290" y="240" />
+        <di:waypoint x="382" y="240" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,30 @@
+{
+  "variables": {
+    "apiBaseUrl": {
+      "value": "http://localhost:8081/api"
+    },
+    "userId": {
+      "value": 1042,
+      "type": "Integer"
+    },
+    "userChanges": {
+      "value": "{\"user\":{\"contact\":{\"phone\":\"+1-555-0148\"},\"preferences\":{\"theme\":\"dark\",\"notifications\":{\"sms\":true,\"push\":true}},\"roles\":[\"editor\",\"reviewer\"]}}",
+      "type": "Json"
+    },
+    "contactA": {
+      "value": "{\"name\":\"ll\",\"phone\":89}",
+      "type": "Json"
+    },
+    "contactB": {
+      "value": "{\"address\":{\"city\":\"khg\",\"name\":\"ff\",\"street\":\"adf\"}}",
+      "type": "Json"
+    },
+    "initiator": {
+      "value": "demo"
+    },
+    "deleteReason": {
+      "value": "manual run"
+    }
+  },
+  "withVariablesInReturn": true
+}

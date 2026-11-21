@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "required": ["userId", "X-Tenant"],
+  "additionalProperties": false,
+  "properties": {
+    "userId": {"type": "integer", "minimum": 1, "x-in": "path", "x-expression": "userId"},
+    "fields": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["contact", "preferences", "roles"]},
+      "uniqueItems": true,
+      "x-in": "query",
+      "default": ["contact", "preferences"]
+    },
+    "filter": {
+      "type": "object",
+      "x-in": "query",
+      "additionalProperties": false,
+      "properties": {
+        "theme": {"type": "string", "x-source": "/user/preferences/theme"},
+        "phone": {"type": "string", "x-source": "/user/contact/phone"}
+      }
+    },
+    "X-Tenant": {"type": "string", "x-in": "header", "default": "acme"}
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "required": ["user"],
+  "additionalProperties": false,
+  "properties": {"user": {"$ref": "#/$defs/user"}},
+  "$defs": {
+    "user": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "integer"},
+        "name": {"type": "string"},
+        "contact": {"type": "object"},
+        "preferences": {"type": "object"},
+        "roles": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

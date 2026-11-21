@@ -1,0 +1,12 @@
+services:
+  rest-mock:
+    image: nginx:1.29.3-alpine
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./mock/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./mock/nginx/njs:/etc/nginx/njs:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      retries: 5

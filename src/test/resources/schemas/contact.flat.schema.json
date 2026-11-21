@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "x-flatten": true,
+  "required": ["name", "phone", "city"],
+  "additionalProperties": false,
+  "properties": {"name": {"type": "string"}, "phone": {"type": "number"}, "city": {"type": "string"}}
+}

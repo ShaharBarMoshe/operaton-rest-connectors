@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "required": ["user"],
+  "additionalProperties": false,
+  "properties": {
+    "user": {
+      "type": "object",
+      "required": ["id", "name", "contact", "preferences"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "integer", "minimum": 1},
+        "name": {"type": "string", "minLength": 1},
+        "contact": {
+          "type": "object",
+          "required": ["email", "phone"],
+          "additionalProperties": false,
+          "properties": {
+            "email": {"type": "string", "format": "email"},
+            "phone": {"type": "string", "minLength": 5}
+          }
+        },
+        "preferences": {
+          "type": "object",
+          "required": ["theme", "notifications"],
+          "additionalProperties": false,
+          "properties": {
+            "theme": {"type": "string", "enum": ["light", "dark", "system"]},
+            "notifications": {
+              "type": "object",
+              "required": ["email", "sms"],
+              "additionalProperties": false,
+              "properties": {
+                "email": {"type": "boolean"},
+                "sms": {"type": "boolean"},
+                "push": {"type": "boolean"}
+              }
+            }
+          }
+        },
+        "roles": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    }
+  }
+}

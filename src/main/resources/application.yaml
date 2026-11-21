@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:operaton;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+
+operaton:
+  bpm:
+    # "activity": history keeps process + activity instances (Cockpit, audit of what ran) but NO
+    # variables and no variable updates. Runtime variables (accessToken included) are deleted when
+    # the instance completes, so nothing of them is left afterwards.
+    history-level: activity
+    admin-user:
+      id: demo
+      password: demo
+    generic-properties:
+      properties:
+        historyTimeToLive: P30D
+
+rest-connector:
+  connect-timeout: 5s
+  read-timeout: 30s
+
+logging:
+  level:
+    com.example.operaton.rest: DEBUG

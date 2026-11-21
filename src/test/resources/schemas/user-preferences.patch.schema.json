@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "required": ["theme"],
+  "additionalProperties": false,
+  "properties": {
+    "theme": {"type": "string", "enum": ["light", "dark", "system"], "x-source": "/user/preferences/theme"},
+    "smsEnabled": {"type": "boolean", "x-source": "/user/preferences/notifications/sms"},
+    "pushEnabled": {"type": "boolean", "x-source": "/user/preferences/notifications/push", "default": false},
+    "updatedBy": {"type": "string", "x-expression": "execution.getVariable('initiator')"}
+  }
+}

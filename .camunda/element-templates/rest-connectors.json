@@ -1,0 +1,861 @@
+[
+  {
+    "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
+    "name": "REST GET",
+    "id": "com.example.operaton.rest.restGet",
+    "version": 3,
+    "description": "Fetch data: request params built from a JSON Schema; 4xx -> BPMN error HTTP_<status>.",
+    "documentationRef": "https://github.com/operaton/operaton",
+    "appliesTo": [
+      "bpmn:Task"
+    ],
+    "elementType": {
+      "value": "bpmn:ServiceTask"
+    },
+    "icon": {
+      "contents": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2730%27%20height%3D%2718%27%20viewBox%3D%270%200%2030%2018%27%3E%3Crect%20width%3D%2730%27%20height%3D%2718%27%20rx%3D%273%27%20fill%3D%27%232e7d32%27/%3E%3Ctext%20x%3D%2715.0%27%20y%3D%2713%27%20font-family%3D%27Arial%2Csans-serif%27%20font-size%3D%2710%27%20font-weight%3D%27bold%27%20fill%3D%27white%27%20text-anchor%3D%27middle%27%3EGET%3C/text%3E%3C/svg%3E"
+    },
+    "groups": [
+      {
+        "id": "request",
+        "label": "Request"
+      },
+      {
+        "id": "response",
+        "label": "Response"
+      },
+      {
+        "id": "engine",
+        "label": "Execution"
+      }
+    ],
+    "entriesVisible": false,
+    "properties": [
+      {
+        "type": "Hidden",
+        "value": "${restGet}",
+        "binding": {
+          "type": "property",
+          "name": "camunda:delegateExpression"
+        }
+      },
+      {
+        "label": "URL",
+        "description": "Request URL. Supports ${expressions} and {placeholders} that are filled from params with \"x-in\": \"path\". Example: ${apiBaseUrl}/users/{userId}",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "url"
+        },
+        "constraints": {
+          "notEmpty": true
+        }
+      },
+      {
+        "label": "Sources",
+        "description": "Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "sources"
+        }
+      },
+      {
+        "label": "Params schema",
+        "description": "JSON Schema for path / query / header params. Each top-level property is one param: \"x-in\": path | query | header (default query); arrays repeat, objects flatten to name.child. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "paramsSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Static headers",
+        "description": "JSON object, values may use ${expressions}. Example: {\"X-Correlation-Id\": \"${execution.processInstanceId}\"}",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "headers"
+        }
+      },
+      {
+        "label": "JWT (bearer token)",
+        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "jwt"
+        }
+      },
+      {
+        "label": "Response schema",
+        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "responseSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Result variable",
+        "description": "Process variable receiving the response body (stored as JSON).",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "resultVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Status variable",
+        "description": "Process variable receiving the HTTP status code.",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "statusVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Async before (enables job retries on 5xx / timeouts)",
+        "type": "Boolean",
+        "value": false,
+        "group": "engine",
+        "binding": {
+          "type": "property",
+          "name": "camunda:asyncBefore"
+        }
+      }
+    ]
+  },
+  {
+    "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
+    "name": "REST PUT",
+    "id": "com.example.operaton.rest.restPut",
+    "version": 3,
+    "description": "Replace a resource: body built from merged sources + JSON Schema.",
+    "documentationRef": "https://github.com/operaton/operaton",
+    "appliesTo": [
+      "bpmn:Task"
+    ],
+    "elementType": {
+      "value": "bpmn:ServiceTask"
+    },
+    "icon": {
+      "contents": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2730%27%20height%3D%2718%27%20viewBox%3D%270%200%2030%2018%27%3E%3Crect%20width%3D%2730%27%20height%3D%2718%27%20rx%3D%273%27%20fill%3D%27%231565c0%27/%3E%3Ctext%20x%3D%2715.0%27%20y%3D%2713%27%20font-family%3D%27Arial%2Csans-serif%27%20font-size%3D%2710%27%20font-weight%3D%27bold%27%20fill%3D%27white%27%20text-anchor%3D%27middle%27%3EPUT%3C/text%3E%3C/svg%3E"
+    },
+    "groups": [
+      {
+        "id": "request",
+        "label": "Request"
+      },
+      {
+        "id": "response",
+        "label": "Response"
+      },
+      {
+        "id": "engine",
+        "label": "Execution"
+      }
+    ],
+    "entriesVisible": false,
+    "properties": [
+      {
+        "type": "Hidden",
+        "value": "${restPut}",
+        "binding": {
+          "type": "property",
+          "name": "camunda:delegateExpression"
+        }
+      },
+      {
+        "label": "URL",
+        "description": "Request URL. Supports ${expressions} and {placeholders} that are filled from params with \"x-in\": \"path\". Example: ${apiBaseUrl}/users/{userId}",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "url"
+        },
+        "constraints": {
+          "notEmpty": true
+        }
+      },
+      {
+        "label": "Sources",
+        "description": "Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "sources"
+        }
+      },
+      {
+        "label": "Params schema",
+        "description": "Optional JSON Schema for path / query / header params (\"x-in\"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "paramsSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Body schema",
+        "description": "JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "bodySchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Static headers",
+        "description": "JSON object, values may use ${expressions}. Example: {\"X-Correlation-Id\": \"${execution.processInstanceId}\"}",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "headers"
+        }
+      },
+      {
+        "label": "JWT (bearer token)",
+        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "jwt"
+        }
+      },
+      {
+        "label": "Response schema",
+        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "responseSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Result variable",
+        "description": "Process variable receiving the response body (stored as JSON).",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "resultVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Status variable",
+        "description": "Process variable receiving the HTTP status code.",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "statusVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Async before (enables job retries on 5xx / timeouts)",
+        "type": "Boolean",
+        "value": false,
+        "group": "engine",
+        "binding": {
+          "type": "property",
+          "name": "camunda:asyncBefore"
+        }
+      }
+    ]
+  },
+  {
+    "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
+    "name": "REST UPDATE (PATCH)",
+    "id": "com.example.operaton.rest.restUpdate",
+    "version": 3,
+    "description": "Partially update a resource: body built from merged sources + JSON Schema.",
+    "documentationRef": "https://github.com/operaton/operaton",
+    "appliesTo": [
+      "bpmn:Task"
+    ],
+    "elementType": {
+      "value": "bpmn:ServiceTask"
+    },
+    "icon": {
+      "contents": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2746%27%20height%3D%2718%27%20viewBox%3D%270%200%2046%2018%27%3E%3Crect%20width%3D%2746%27%20height%3D%2718%27%20rx%3D%273%27%20fill%3D%27%236a1b9a%27/%3E%3Ctext%20x%3D%2723.0%27%20y%3D%2713%27%20font-family%3D%27Arial%2Csans-serif%27%20font-size%3D%2710%27%20font-weight%3D%27bold%27%20fill%3D%27white%27%20text-anchor%3D%27middle%27%3EPATCH%3C/text%3E%3C/svg%3E"
+    },
+    "groups": [
+      {
+        "id": "request",
+        "label": "Request"
+      },
+      {
+        "id": "response",
+        "label": "Response"
+      },
+      {
+        "id": "engine",
+        "label": "Execution"
+      }
+    ],
+    "entriesVisible": false,
+    "properties": [
+      {
+        "type": "Hidden",
+        "value": "${restUpdate}",
+        "binding": {
+          "type": "property",
+          "name": "camunda:delegateExpression"
+        }
+      },
+      {
+        "label": "URL",
+        "description": "Request URL. Supports ${expressions} and {placeholders} that are filled from params with \"x-in\": \"path\". Example: ${apiBaseUrl}/users/{userId}",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "url"
+        },
+        "constraints": {
+          "notEmpty": true
+        }
+      },
+      {
+        "label": "Sources",
+        "description": "Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "sources"
+        }
+      },
+      {
+        "label": "Params schema",
+        "description": "Optional JSON Schema for path / query / header params (\"x-in\"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "paramsSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Body schema",
+        "description": "JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "bodySchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Static headers",
+        "description": "JSON object, values may use ${expressions}. Example: {\"X-Correlation-Id\": \"${execution.processInstanceId}\"}",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "headers"
+        }
+      },
+      {
+        "label": "JWT (bearer token)",
+        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "jwt"
+        }
+      },
+      {
+        "label": "Response schema",
+        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "responseSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Result variable",
+        "description": "Process variable receiving the response body (stored as JSON).",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "resultVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Status variable",
+        "description": "Process variable receiving the HTTP status code.",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "statusVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Async before (enables job retries on 5xx / timeouts)",
+        "type": "Boolean",
+        "value": false,
+        "group": "engine",
+        "binding": {
+          "type": "property",
+          "name": "camunda:asyncBefore"
+        }
+      }
+    ]
+  },
+  {
+    "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
+    "name": "REST POST",
+    "id": "com.example.operaton.rest.restPost",
+    "version": 3,
+    "description": "Create a resource: body built from merged sources + JSON Schema.",
+    "documentationRef": "https://github.com/operaton/operaton",
+    "appliesTo": [
+      "bpmn:Task"
+    ],
+    "elementType": {
+      "value": "bpmn:ServiceTask"
+    },
+    "icon": {
+      "contents": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2738%27%20height%3D%2718%27%20viewBox%3D%270%200%2038%2018%27%3E%3Crect%20width%3D%2738%27%20height%3D%2718%27%20rx%3D%273%27%20fill%3D%27%23ef6c00%27/%3E%3Ctext%20x%3D%2719.0%27%20y%3D%2713%27%20font-family%3D%27Arial%2Csans-serif%27%20font-size%3D%2710%27%20font-weight%3D%27bold%27%20fill%3D%27white%27%20text-anchor%3D%27middle%27%3EPOST%3C/text%3E%3C/svg%3E"
+    },
+    "groups": [
+      {
+        "id": "request",
+        "label": "Request"
+      },
+      {
+        "id": "response",
+        "label": "Response"
+      },
+      {
+        "id": "engine",
+        "label": "Execution"
+      }
+    ],
+    "entriesVisible": false,
+    "properties": [
+      {
+        "type": "Hidden",
+        "value": "${restPost}",
+        "binding": {
+          "type": "property",
+          "name": "camunda:delegateExpression"
+        }
+      },
+      {
+        "label": "URL",
+        "description": "Request URL. Supports ${expressions} and {placeholders} that are filled from params with \"x-in\": \"path\". Example: ${apiBaseUrl}/users/{userId}",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "url"
+        },
+        "constraints": {
+          "notEmpty": true
+        }
+      },
+      {
+        "label": "Sources",
+        "description": "Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "sources"
+        }
+      },
+      {
+        "label": "Params schema",
+        "description": "Optional JSON Schema for path / query / header params (\"x-in\"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "paramsSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Body schema",
+        "description": "JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "bodySchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Static headers",
+        "description": "JSON object, values may use ${expressions}. Example: {\"X-Correlation-Id\": \"${execution.processInstanceId}\"}",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "headers"
+        }
+      },
+      {
+        "label": "JWT (bearer token)",
+        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "jwt"
+        }
+      },
+      {
+        "label": "Response schema",
+        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "responseSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Result variable",
+        "description": "Process variable receiving the response body (stored as JSON).",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "resultVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Status variable",
+        "description": "Process variable receiving the HTTP status code.",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "statusVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Async before (enables job retries on 5xx / timeouts)",
+        "type": "Boolean",
+        "value": false,
+        "group": "engine",
+        "binding": {
+          "type": "property",
+          "name": "camunda:asyncBefore"
+        }
+      }
+    ]
+  },
+  {
+    "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
+    "name": "REST DELETE",
+    "id": "com.example.operaton.rest.restDelete",
+    "version": 3,
+    "description": "Delete a resource: path / query params built from a JSON Schema.",
+    "documentationRef": "https://github.com/operaton/operaton",
+    "appliesTo": [
+      "bpmn:Task"
+    ],
+    "elementType": {
+      "value": "bpmn:ServiceTask"
+    },
+    "icon": {
+      "contents": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2754%27%20height%3D%2718%27%20viewBox%3D%270%200%2054%2018%27%3E%3Crect%20width%3D%2754%27%20height%3D%2718%27%20rx%3D%273%27%20fill%3D%27%23c62828%27/%3E%3Ctext%20x%3D%2727.0%27%20y%3D%2713%27%20font-family%3D%27Arial%2Csans-serif%27%20font-size%3D%2710%27%20font-weight%3D%27bold%27%20fill%3D%27white%27%20text-anchor%3D%27middle%27%3EDELETE%3C/text%3E%3C/svg%3E"
+    },
+    "groups": [
+      {
+        "id": "request",
+        "label": "Request"
+      },
+      {
+        "id": "response",
+        "label": "Response"
+      },
+      {
+        "id": "engine",
+        "label": "Execution"
+      }
+    ],
+    "entriesVisible": false,
+    "properties": [
+      {
+        "type": "Hidden",
+        "value": "${restDelete}",
+        "binding": {
+          "type": "property",
+          "name": "camunda:delegateExpression"
+        }
+      },
+      {
+        "label": "URL",
+        "description": "Request URL. Supports ${expressions} and {placeholders} that are filled from params with \"x-in\": \"path\". Example: ${apiBaseUrl}/users/{userId}",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "url"
+        },
+        "constraints": {
+          "notEmpty": true
+        }
+      },
+      {
+        "label": "Sources",
+        "description": "Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "sources"
+        }
+      },
+      {
+        "label": "Params schema",
+        "description": "JSON Schema for path / query / header params. Each top-level property is one param: \"x-in\": path | query | header (default query); arrays repeat, objects flatten to name.child. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "paramsSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Body schema (optional)",
+        "description": "Only if the API expects a DELETE body: JSON Schema that builds + validates it. Usually empty. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "bodySchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Static headers",
+        "description": "JSON object, values may use ${expressions}. Example: {\"X-Correlation-Id\": \"${execution.processInstanceId}\"}",
+        "type": "Text",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "headers"
+        }
+      },
+      {
+        "label": "JWT (bearer token)",
+        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
+        "type": "String",
+        "group": "request",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "jwt"
+        }
+      },
+      {
+        "label": "Response schema",
+        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "type": "Text",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "responseSchema"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
+            "message": "Must be an inline JSON object { ... }"
+          }
+        }
+      },
+      {
+        "label": "Result variable",
+        "description": "Process variable receiving the response body (stored as JSON).",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "resultVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Status variable",
+        "description": "Process variable receiving the HTTP status code.",
+        "type": "String",
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "statusVariable"
+        },
+        "constraints": {
+          "pattern": {
+            "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+            "message": "Must be a valid variable name"
+          }
+        }
+      },
+      {
+        "label": "Async before (enables job retries on 5xx / timeouts)",
+        "type": "Boolean",
+        "value": false,
+        "group": "engine",
+        "binding": {
+          "type": "property",
+          "name": "camunda:asyncBefore"
+        }
+      }
+    ]
+  }
+]

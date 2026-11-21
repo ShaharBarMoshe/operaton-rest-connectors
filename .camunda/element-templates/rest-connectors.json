@@ -3,8 +3,8 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST GET",
     "id": "com.example.operaton.rest.restGet",
-    "version": 3,
-    "description": "Fetch data: request params built from a JSON Schema; 4xx -> BPMN error HTTP_<status>.",
+    "version": 5,
+    "description": "Fetch data: request params built from the pasted OpenAPI parameters; 4xx -> BPMN error HTTP_<status>.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
       "bpmn:Task"
@@ -64,7 +64,7 @@
       },
       {
         "label": "Params schema",
-        "description": "JSON Schema for path / query / header params. Each top-level property is one param: \"x-in\": path | query | header (default query); arrays repeat, objects flatten to name.child. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Paste the operation's \"parameters\" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "request",
         "binding": {
@@ -73,8 +73,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -89,18 +89,8 @@
         }
       },
       {
-        "label": "JWT (bearer token)",
-        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
-        "type": "String",
-        "group": "request",
-        "binding": {
-          "type": "camunda:inputParameter",
-          "name": "jwt"
-        }
-      },
-      {
         "label": "Response schema",
-        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's \"responses\" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "response",
         "binding": {
@@ -109,8 +99,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -147,6 +137,27 @@
         }
       },
       {
+        "label": "Technical errors (5xx, timeout, connection)",
+        "description": "exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.",
+        "type": "Dropdown",
+        "value": "exception",
+        "choices": [
+          {
+            "name": "Exception (incident / retry)",
+            "value": "exception"
+          },
+          {
+            "name": "BPMN error (HTTP_5xx / CONNECTION_FAILED)",
+            "value": "bpmnError"
+          }
+        ],
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "technicalErrors"
+        }
+      },
+      {
         "label": "Async before (enables job retries on 5xx / timeouts)",
         "type": "Boolean",
         "value": false,
@@ -162,8 +173,8 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST PUT",
     "id": "com.example.operaton.rest.restPut",
-    "version": 3,
-    "description": "Replace a resource: body built from merged sources + JSON Schema.",
+    "version": 5,
+    "description": "Replace a resource: body built from merged sources + pasted OpenAPI schema.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
       "bpmn:Task"
@@ -223,7 +234,7 @@
       },
       {
         "label": "Params schema",
-        "description": "Optional JSON Schema for path / query / header params (\"x-in\"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Paste the operation's \"parameters\" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "request",
         "binding": {
@@ -232,14 +243,14 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
       {
         "label": "Body schema",
-        "description": "JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Paste the request schema from the service's OpenAPI / Swagger document: a schema object (components.schemas.X), the requestBody, or the whole operation. Builds + validates the body from the merged sources; only declared properties are sent, readOnly ones are left out. Empty = send the merged sources as-is. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "request",
         "binding": {
@@ -248,8 +259,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -264,18 +275,8 @@
         }
       },
       {
-        "label": "JWT (bearer token)",
-        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
-        "type": "String",
-        "group": "request",
-        "binding": {
-          "type": "camunda:inputParameter",
-          "name": "jwt"
-        }
-      },
-      {
         "label": "Response schema",
-        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's \"responses\" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "response",
         "binding": {
@@ -284,8 +285,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -322,6 +323,27 @@
         }
       },
       {
+        "label": "Technical errors (5xx, timeout, connection)",
+        "description": "exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.",
+        "type": "Dropdown",
+        "value": "exception",
+        "choices": [
+          {
+            "name": "Exception (incident / retry)",
+            "value": "exception"
+          },
+          {
+            "name": "BPMN error (HTTP_5xx / CONNECTION_FAILED)",
+            "value": "bpmnError"
+          }
+        ],
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "technicalErrors"
+        }
+      },
+      {
         "label": "Async before (enables job retries on 5xx / timeouts)",
         "type": "Boolean",
         "value": false,
@@ -337,8 +359,8 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST UPDATE (PATCH)",
     "id": "com.example.operaton.rest.restUpdate",
-    "version": 3,
-    "description": "Partially update a resource: body built from merged sources + JSON Schema.",
+    "version": 5,
+    "description": "Partially update a resource: body built from merged sources + pasted OpenAPI schema.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
       "bpmn:Task"
@@ -398,7 +420,7 @@
       },
       {
         "label": "Params schema",
-        "description": "Optional JSON Schema for path / query / header params (\"x-in\"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Paste the operation's \"parameters\" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "request",
         "binding": {
@@ -407,14 +429,14 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
       {
         "label": "Body schema",
-        "description": "JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Paste the request schema from the service's OpenAPI / Swagger document: a schema object (components.schemas.X), the requestBody, or the whole operation. Builds + validates the body from the merged sources; only declared properties are sent, readOnly ones are left out. Empty = send the merged sources as-is. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "request",
         "binding": {
@@ -423,8 +445,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -439,18 +461,8 @@
         }
       },
       {
-        "label": "JWT (bearer token)",
-        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
-        "type": "String",
-        "group": "request",
-        "binding": {
-          "type": "camunda:inputParameter",
-          "name": "jwt"
-        }
-      },
-      {
         "label": "Response schema",
-        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's \"responses\" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "response",
         "binding": {
@@ -459,8 +471,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -497,6 +509,27 @@
         }
       },
       {
+        "label": "Technical errors (5xx, timeout, connection)",
+        "description": "exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.",
+        "type": "Dropdown",
+        "value": "exception",
+        "choices": [
+          {
+            "name": "Exception (incident / retry)",
+            "value": "exception"
+          },
+          {
+            "name": "BPMN error (HTTP_5xx / CONNECTION_FAILED)",
+            "value": "bpmnError"
+          }
+        ],
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "technicalErrors"
+        }
+      },
+      {
         "label": "Async before (enables job retries on 5xx / timeouts)",
         "type": "Boolean",
         "value": false,
@@ -512,8 +545,8 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST POST",
     "id": "com.example.operaton.rest.restPost",
-    "version": 3,
-    "description": "Create a resource: body built from merged sources + JSON Schema.",
+    "version": 5,
+    "description": "Create a resource: body built from merged sources + pasted OpenAPI schema.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
       "bpmn:Task"
@@ -573,7 +606,7 @@
       },
       {
         "label": "Params schema",
-        "description": "Optional JSON Schema for path / query / header params (\"x-in\"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Paste the operation's \"parameters\" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "request",
         "binding": {
@@ -582,14 +615,14 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
       {
         "label": "Body schema",
-        "description": "JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Paste the request schema from the service's OpenAPI / Swagger document: a schema object (components.schemas.X), the requestBody, or the whole operation. Builds + validates the body from the merged sources; only declared properties are sent, readOnly ones are left out. Empty = send the merged sources as-is. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "request",
         "binding": {
@@ -598,8 +631,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -614,18 +647,8 @@
         }
       },
       {
-        "label": "JWT (bearer token)",
-        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
-        "type": "String",
-        "group": "request",
-        "binding": {
-          "type": "camunda:inputParameter",
-          "name": "jwt"
-        }
-      },
-      {
         "label": "Response schema",
-        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's \"responses\" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "response",
         "binding": {
@@ -634,8 +657,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -672,6 +695,27 @@
         }
       },
       {
+        "label": "Technical errors (5xx, timeout, connection)",
+        "description": "exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.",
+        "type": "Dropdown",
+        "value": "exception",
+        "choices": [
+          {
+            "name": "Exception (incident / retry)",
+            "value": "exception"
+          },
+          {
+            "name": "BPMN error (HTTP_5xx / CONNECTION_FAILED)",
+            "value": "bpmnError"
+          }
+        ],
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "technicalErrors"
+        }
+      },
+      {
         "label": "Async before (enables job retries on 5xx / timeouts)",
         "type": "Boolean",
         "value": false,
@@ -687,8 +731,8 @@
     "$schema": "https://unpkg.com/@camunda/element-templates-json-schema/resources/schema.json",
     "name": "REST DELETE",
     "id": "com.example.operaton.rest.restDelete",
-    "version": 3,
-    "description": "Delete a resource: path / query params built from a JSON Schema.",
+    "version": 5,
+    "description": "Delete a resource: path / query params built from the pasted OpenAPI parameters.",
     "documentationRef": "https://github.com/operaton/operaton",
     "appliesTo": [
       "bpmn:Task"
@@ -748,7 +792,7 @@
       },
       {
         "label": "Params schema",
-        "description": "JSON Schema for path / query / header params. Each top-level property is one param: \"x-in\": path | query | header (default query); arrays repeat, objects flatten to name.child. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Paste the operation's \"parameters\" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "request",
         "binding": {
@@ -757,14 +801,14 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
       {
         "label": "Body schema (optional)",
-        "description": "Only if the API expects a DELETE body: JSON Schema that builds + validates it. Usually empty. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Paste the request schema from the service's OpenAPI / Swagger document: a schema object (components.schemas.X), the requestBody, or the whole operation. Builds + validates the body from the merged sources; only declared properties are sent, readOnly ones are left out. Empty = send the merged sources as-is. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "request",
         "binding": {
@@ -773,8 +817,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -789,18 +833,8 @@
         }
       },
       {
-        "label": "JWT (bearer token)",
-        "description": "Optional. Sends Authorization: Bearer <token>. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -> BPMN error HTTP_401 / HTTP_403.",
-        "type": "String",
-        "group": "request",
-        "binding": {
-          "type": "camunda:inputParameter",
-          "name": "jwt"
-        }
-      },
-      {
         "label": "Response schema",
-        "description": "Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use \"x-expression\": \"varName\" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).",
+        "description": "Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's \"responses\" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -> BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); \"$ref\"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level \"$ref\": \"#/components/schemas/Name\". Add \"x-source\": \"/json/pointer\" or \"x-expression\": \"varName\" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.",
         "type": "Text",
         "group": "response",
         "binding": {
@@ -809,8 +843,8 @@
         },
         "constraints": {
           "pattern": {
-            "value": "^\\s*$|^\\s*\\{[\\s\\S]*\\}\\s*$",
-            "message": "Must be an inline JSON object { ... }"
+            "value": "^\\s*$|^\\s*[\\[{][\\s\\S]*[\\]}]\\s*$|^\\s*[A-Za-z0-9_$\\\"'-][\\s\\S]*:[\\s\\S]*$|^\\s*- [\\s\\S]*$",
+            "message": "Must be OpenAPI / JSON Schema as JSON or YAML"
           }
         }
       },
@@ -844,6 +878,27 @@
             "value": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
             "message": "Must be a valid variable name"
           }
+        }
+      },
+      {
+        "label": "Technical errors (5xx, timeout, connection)",
+        "description": "exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.",
+        "type": "Dropdown",
+        "value": "exception",
+        "choices": [
+          {
+            "name": "Exception (incident / retry)",
+            "value": "exception"
+          },
+          {
+            "name": "BPMN error (HTTP_5xx / CONNECTION_FAILED)",
+            "value": "bpmnError"
+          }
+        ],
+        "group": "response",
+        "binding": {
+          "type": "camunda:inputParameter",
+          "name": "technicalErrors"
         }
       },
       {

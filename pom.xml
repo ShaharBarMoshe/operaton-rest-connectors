@@ -36,24 +36,15 @@
   </dependencyManagement>
 
   <dependencies>
+    <!-- versions from operaton-bom; the starters bring Spring MVC, Tomcat and JDBC -->
     <dependency>
       <groupId>org.operaton.bpm.springboot</groupId>
       <artifactId>operaton-bpm-spring-boot-starter-rest</artifactId>
-      <version>${operaton.version}</version>
     </dependency>
     <!-- Cockpit / Tasklist / Admin at /operaton/app (login demo/demo): see running instances and their variables -->
     <dependency>
       <groupId>org.operaton.bpm.springboot</groupId>
       <artifactId>operaton-bpm-spring-boot-starter-webapp</artifactId>
-      <version>${operaton.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-jdbc</artifactId>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
@@ -69,18 +60,8 @@
       <groupId>org.operaton.spin</groupId>
       <artifactId>operaton-spin-dataformat-json-jackson</artifactId>
     </dependency>
-
-    <!-- JSON handling + JSON Schema (draft 2020-12) validation -->
-    <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-    </dependency>
-    <!-- schemas may be pasted from an OpenAPI / Swagger document in YAML -->
-    <dependency>
-      <groupId>com.fasterxml.jackson.dataformat</groupId>
-      <artifactId>jackson-dataformat-yaml</artifactId>
-    </dependency>
-    <!-- parses pasted OpenAPI 3.x / Swagger 2.0 documents: $ref resolution, Swagger 2 -> OpenAPI 3 -->
+    <!-- parses pasted OpenAPI 3.x / Swagger 2.0 documents: $ref resolution, Swagger 2 -> OpenAPI 3;
+         brings Jackson 2 (com.fasterxml) with its YAML module, which the schema layer uses -->
     <dependency>
       <groupId>io.swagger.parser.v3</groupId>
       <artifactId>swagger-parser</artifactId>

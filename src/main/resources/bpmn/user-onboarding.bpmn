@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_userOnboarding" targetNamespace="http://example.com/bpmn" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.24.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_userOnboarding" targetNamespace="http://example.com/bpmn" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.24.0">
   <bpmn:error id="Error_onb_404" name="User not found" errorCode="HTTP_404" />
   <!--
     Start variables:
@@ -14,17 +14,17 @@
       <bpmn:outgoing>o1</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:serviceTask id="onbGetUser" name="GET user" camunda:delegateExpression="${restGet}">
-      <bpmn:documentation>[REST connector] REST GET - Fetch data: request params built from a JSON Schema; 4xx -&gt; BPMN error HTTP_&lt;status&gt;.
+      <bpmn:documentation>[REST connector] REST GET - Fetch data: request params built from the pasted OpenAPI parameters; 4xx -&gt; BPMN error HTTP_&lt;status&gt;.
 Implementation: delegateExpression ${restGet}
 Inputs (leave empty when not needed):
 - url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
 - sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
-- paramsSchema: JSON Schema for path / query / header params. Each top-level property is one param: "x-in": path | query | header (default query); arrays repeat, objects flatten to name.child. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- paramsSchema: Paste the operation's "parameters" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
-- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
-- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
-- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+- statusVariable: Process variable receiving the HTTP status code.
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}</camunda:inputParameter>
@@ -55,7 +55,6 @@ Inputs (leave empty when not needed):
   }
 }</camunda:inputParameter>
           <camunda:inputParameter name="headers" />
-          <camunda:inputParameter name="jwt" />
           <camunda:inputParameter name="responseSchema">{
   "type": "object",
   "required": ["user"],
@@ -78,6 +77,7 @@ Inputs (leave empty when not needed):
 }</camunda:inputParameter>
           <camunda:inputParameter name="resultVariable">currentUser</camunda:inputParameter>
           <camunda:inputParameter name="statusVariable" />
+          <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o1</bpmn:incoming>
@@ -88,18 +88,18 @@ Inputs (leave empty when not needed):
       <bpmn:errorEventDefinition errorRef="Error_onb_404" />
     </bpmn:boundaryEvent>
     <bpmn:serviceTask id="onbPutUser" name="PUT merged user" camunda:delegateExpression="${restPut}">
-      <bpmn:documentation>[REST connector] REST PUT - Replace a resource: body built from merged sources + JSON Schema.
+      <bpmn:documentation>[REST connector] REST PUT - Replace a resource: body built from merged sources + pasted OpenAPI schema.
 Implementation: delegateExpression ${restPut}
 Inputs (leave empty when not needed):
 - url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
 - sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
-- paramsSchema: Optional JSON Schema for path / query / header params ("x-in"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
-- bodySchema: JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- paramsSchema: Paste the operation's "parameters" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
+- bodySchema: Paste the request schema from the service's OpenAPI / Swagger document: a schema object (components.schemas.X), the requestBody, or the whole operation. Builds + validates the body from the merged sources; only declared properties are sent, readOnly ones are left out. Empty = send the merged sources as-is. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
-- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
-- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
-- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+- statusVariable: Process variable receiving the HTTP status code.
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}</camunda:inputParameter>
@@ -155,28 +155,28 @@ Inputs (leave empty when not needed):
   }
 }</camunda:inputParameter>
           <camunda:inputParameter name="headers" />
-          <camunda:inputParameter name="jwt" />
           <camunda:inputParameter name="responseSchema" />
           <camunda:inputParameter name="resultVariable">updatedUser</camunda:inputParameter>
           <camunda:inputParameter name="statusVariable">putStatus</camunda:inputParameter>
+          <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o2</bpmn:incoming>
       <bpmn:outgoing>o3</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="onbPatchPreferences" name="UPDATE preferences" camunda:delegateExpression="${restUpdate}">
-      <bpmn:documentation>[REST connector] REST UPDATE (PATCH) - Partially update a resource: body built from merged sources + JSON Schema.
+      <bpmn:documentation>[REST connector] REST UPDATE (PATCH) - Partially update a resource: body built from merged sources + pasted OpenAPI schema.
 Implementation: delegateExpression ${restUpdate}
 Inputs (leave empty when not needed):
 - url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
 - sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
-- paramsSchema: Optional JSON Schema for path / query / header params ("x-in"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
-- bodySchema: JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- paramsSchema: Paste the operation's "parameters" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
+- bodySchema: Paste the request schema from the service's OpenAPI / Swagger document: a schema object (components.schemas.X), the requestBody, or the whole operation. Builds + validates the body from the merged sources; only declared properties are sent, readOnly ones are left out. Empty = send the merged sources as-is. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
-- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
-- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
-- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+- statusVariable: Process variable receiving the HTTP status code.
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}/preferences</camunda:inputParameter>
@@ -199,10 +199,10 @@ Inputs (leave empty when not needed):
   }
 }</camunda:inputParameter>
           <camunda:inputParameter name="headers">{"X-Correlation-Id": "${execution.processInstanceId}"}</camunda:inputParameter>
-          <camunda:inputParameter name="jwt" />
           <camunda:inputParameter name="responseSchema" />
           <camunda:inputParameter name="resultVariable" />
           <camunda:inputParameter name="statusVariable">patchStatus</camunda:inputParameter>
+          <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o3</bpmn:incoming>
@@ -210,18 +210,18 @@ Inputs (leave empty when not needed):
     </bpmn:serviceTask>
     <!-- POST with x-flatten: {"name":"ll","phone":89} + {"address":{"city":..,"name":..,"street":..}} → {"name","phone","city"} -->
     <bpmn:serviceTask id="onbPostContact" name="POST flat contact" camunda:delegateExpression="${restPost}">
-      <bpmn:documentation>[REST connector] REST POST - Create a resource: body built from merged sources + JSON Schema.
+      <bpmn:documentation>[REST connector] REST POST - Create a resource: body built from merged sources + pasted OpenAPI schema.
 Implementation: delegateExpression ${restPost}
 Inputs (leave empty when not needed):
 - url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
 - sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
-- paramsSchema: Optional JSON Schema for path / query / header params ("x-in"), e.g. the {userId} path placeholder. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
-- bodySchema: JSON Schema that builds + validates the request body from the merged sources (x-source, x-expression, x-flatten, default, const). Empty = send the merged sources as-is. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- paramsSchema: Paste the operation's "parameters" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
+- bodySchema: Paste the request schema from the service's OpenAPI / Swagger document: a schema object (components.schemas.X), the requestBody, or the whole operation. Builds + validates the body from the merged sources; only declared properties are sent, readOnly ones are left out. Empty = send the merged sources as-is. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
-- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
-- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
-- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+- statusVariable: Process variable receiving the HTTP status code.
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/contacts</camunda:inputParameter>
@@ -235,28 +235,28 @@ Inputs (leave empty when not needed):
   "properties": {"name": {"type": "string"}, "phone": {"type": "number"}, "city": {"type": "string"}}
 }</camunda:inputParameter>
           <camunda:inputParameter name="headers" />
-          <camunda:inputParameter name="jwt" />
           <camunda:inputParameter name="responseSchema" />
           <camunda:inputParameter name="resultVariable">createdContact</camunda:inputParameter>
           <camunda:inputParameter name="statusVariable">postStatus</camunda:inputParameter>
+          <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o4</bpmn:incoming>
       <bpmn:outgoing>o5</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="onbDeleteSessions" name="DELETE sessions" camunda:delegateExpression="${restDelete}">
-      <bpmn:documentation>[REST connector] REST DELETE - Delete a resource: path / query params built from a JSON Schema.
+      <bpmn:documentation>[REST connector] REST DELETE - Delete a resource: path / query params built from the pasted OpenAPI parameters.
 Implementation: delegateExpression ${restDelete}
 Inputs (leave empty when not needed):
 - url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
 - sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
-- paramsSchema: JSON Schema for path / query / header params. Each top-level property is one param: "x-in": path | query | header (default query); arrays repeat, objects flatten to name.child. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
-- bodySchema: Only if the API expects a DELETE body: JSON Schema that builds + validates it. Usually empty. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- paramsSchema: Paste the operation's "parameters" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
+- bodySchema: Paste the request schema from the service's OpenAPI / Swagger document: a schema object (components.schemas.X), the requestBody, or the whole operation. Builds + validates the body from the merged sources; only declared properties are sent, readOnly ones are left out. Empty = send the merged sources as-is. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
-- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
-- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
-- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+- statusVariable: Process variable receiving the HTTP status code.
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}/sessions</camunda:inputParameter>
@@ -272,10 +272,10 @@ Inputs (leave empty when not needed):
 }</camunda:inputParameter>
           <camunda:inputParameter name="bodySchema" />
           <camunda:inputParameter name="headers" />
-          <camunda:inputParameter name="jwt" />
           <camunda:inputParameter name="responseSchema" />
           <camunda:inputParameter name="resultVariable" />
           <camunda:inputParameter name="statusVariable">deleteStatus</camunda:inputParameter>
+          <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o5</bpmn:incoming>
@@ -283,17 +283,17 @@ Inputs (leave empty when not needed):
     </bpmn:serviceTask>
     <!-- read back to prove the mock really stored PUT + PATCH -->
     <bpmn:serviceTask id="onbVerifyUser" name="GET user (verify)" camunda:delegateExpression="${restGet}">
-      <bpmn:documentation>[REST connector] REST GET - Fetch data: request params built from a JSON Schema; 4xx -&gt; BPMN error HTTP_&lt;status&gt;.
+      <bpmn:documentation>[REST connector] REST GET - Fetch data: request params built from the pasted OpenAPI parameters; 4xx -&gt; BPMN error HTTP_&lt;status&gt;.
 Implementation: delegateExpression ${restGet}
 Inputs (leave empty when not needed):
 - url: Request URL. Supports ${expressions} and {placeholders} that are filled from params with "x-in": "path". Example: ${apiBaseUrl}/users/{userId}
 - sources: Comma separated process variable names (or a JSON literal) deep-merged in order - later wins. Example: currentUser, userChanges
-- paramsSchema: JSON Schema for path / query / header params. Each top-level property is one param: "x-in": path | query | header (default query); arrays repeat, objects flatten to name.child. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- paramsSchema: Paste the operation's "parameters" list from the service's OpenAPI / Swagger document (in: path | query | header). A parameter is filled from the merged sources, else from the process variable with the same name. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - headers: JSON object, values may use ${expressions}. Example: {"X-Correlation-Id": "${execution.processInstanceId}"}
-- jwt: Optional. Sends Authorization: Bearer &lt;token&gt;. Give the NAME of the process variable that holds the token (e.g. accessToken) - preferred, the token is read at runtime and no copy is stored in history. A token literal or the result of an expression also works. Overrides an Authorization header from Static headers / params. HTTP 401/403 -&gt; BPMN error HTTP_401 / HTTP_403.
-- responseSchema: Optional JSON Schema: shapes the response (drops unknown fields) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste the JSON Schema itself (inline JSON object), not a file path. Use "x-expression": "varName" (no dollar-brace wrapper) for expressions - the engine evaluates any dollar-brace text in this field before the connector runs. Keep it under ~4000 characters (engine string-variable limit).
+- responseSchema: Optional. Paste the response schema from the service's OpenAPI / Swagger document: a schema object, a response, or the operation's "responses" (the first 2xx is used). Shapes the response (only declared properties are kept, writeOnly ones dropped) and validates it. Violation -&gt; BPMN error RESPONSE_INVALID. Paste it as JSON or YAML (OpenAPI 3.x or Swagger 2.0); "$ref"s must resolve inside the pasted text, so paste the referenced components too, or the whole document plus a top-level "$ref": "#/components/schemas/Name". Add "x-source": "/json/pointer" or "x-expression": "varName" (no dollar-brace wrapper) where your process data is named differently. Long pastes (a whole OpenAPI document) work with history level activity or none; with audit / full history the engine stores every input in history and limits it to 4000 characters.
 - resultVariable: Process variable receiving the response body (stored as JSON).
-- statusVariable: Process variable receiving the HTTP status code.</bpmn:documentation>
+- statusVariable: Process variable receiving the HTTP status code.
+- technicalErrors: exception (default): the task fails - incident, or retried with async before. bpmnError: thrown as BPMN error HTTP_5xx / CONNECTION_FAILED so an error boundary event or error event subprocess can handle it. 4xx (HTTP_4xx) and schema errors (REQUEST_INVALID / RESPONSE_INVALID) are always BPMN errors.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:inputOutput>
           <camunda:inputParameter name="url">${apiBaseUrl}/users/{userId}</camunda:inputParameter>
@@ -324,10 +324,10 @@ Inputs (leave empty when not needed):
   }
 }</camunda:inputParameter>
           <camunda:inputParameter name="headers" />
-          <camunda:inputParameter name="jwt" />
           <camunda:inputParameter name="responseSchema" />
           <camunda:inputParameter name="resultVariable">finalUser</camunda:inputParameter>
           <camunda:inputParameter name="statusVariable" />
+          <camunda:inputParameter name="technicalErrors">bpmnError</camunda:inputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>o6</bpmn:incoming>
@@ -347,6 +347,50 @@ Inputs (leave empty when not needed):
     <bpmn:sequenceFlow id="o6" sourceRef="onbDeleteSessions" targetRef="onbVerifyUser" />
     <bpmn:sequenceFlow id="o7" sourceRef="onbVerifyUser" targetRef="onbEnd" />
     <bpmn:sequenceFlow id="o404" sourceRef="onbNotFound" targetRef="onbEndNotFound" />
+    <bpmn:subProcess id="errorHandler" name="Handle REST errors" triggeredByEvent="true">
+      <bpmn:documentation>Catches every BPMN error thrown by a REST task of this process (error start event without an error code = catch all) and ends the instance at the end event for that kind of error. errorCode / errorMessage hold the code (HTTP_401, HTTP_404, HTTP_503, REQUEST_INVALID, CONNECTION_FAILED, ...) and the response body; callers get them with withVariablesInReturn. A boundary event on a task (e.g. HTTP_404 on the first GET) still takes precedence.</bpmn:documentation>
+      <bpmn:startEvent id="errStart" name="Any REST error">
+        <bpmn:outgoing>errFlowStart</bpmn:outgoing>
+        <bpmn:errorEventDefinition id="errStartDef" camunda:errorCodeVariable="errorCode" camunda:errorMessageVariable="errorMessage" />
+      </bpmn:startEvent>
+      <bpmn:exclusiveGateway id="errKind" name="Which error?" default="errFlowRejected">
+        <bpmn:incoming>errFlowStart</bpmn:incoming>
+        <bpmn:outgoing>errFlowAuth</bpmn:outgoing>
+        <bpmn:outgoing>errFlowNotFound</bpmn:outgoing>
+        <bpmn:outgoing>errFlowInvalid</bpmn:outgoing>
+        <bpmn:outgoing>errFlowUnavailable</bpmn:outgoing>
+        <bpmn:outgoing>errFlowRejected</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:endEvent id="errEndAuth" name="Not authorized">
+        <bpmn:incoming>errFlowAuth</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="errEndNotFound" name="Not found">
+        <bpmn:incoming>errFlowNotFound</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="errEndInvalid" name="Invalid data">
+        <bpmn:incoming>errFlowInvalid</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="errEndUnavailable" name="Service unavailable">
+        <bpmn:incoming>errFlowUnavailable</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="errEndRejected" name="Request rejected">
+        <bpmn:incoming>errFlowRejected</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="errFlowStart" sourceRef="errStart" targetRef="errKind" />
+      <bpmn:sequenceFlow id="errFlowAuth" name="HTTP_401 / HTTP_403" sourceRef="errKind" targetRef="errEndAuth">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${errorCode == 'HTTP_401' || errorCode == 'HTTP_403'}</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="errFlowNotFound" name="HTTP_404" sourceRef="errKind" targetRef="errEndNotFound">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${errorCode == 'HTTP_404'}</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="errFlowInvalid" name="REQUEST_INVALID / RESPONSE_INVALID" sourceRef="errKind" targetRef="errEndInvalid">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${errorCode == 'REQUEST_INVALID' || errorCode == 'RESPONSE_INVALID'}</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="errFlowUnavailable" name="HTTP_5xx / CONNECTION_FAILED" sourceRef="errKind" targetRef="errEndUnavailable">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${errorCode == 'CONNECTION_FAILED' || errorCode.startsWith('HTTP_5')}</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="errFlowRejected" name="other 4xx (default)" sourceRef="errKind" targetRef="errEndRejected" />
+    </bpmn:subProcess>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="Diagram_userOnboarding">
     <bpmndi:BPMNPlane id="Plane_userOnboarding" bpmnElement="user-onboarding">
@@ -412,6 +456,94 @@ Inputs (leave empty when not needed):
         <di:waypoint x="290" y="178" />
         <di:waypoint x="290" y="240" />
         <di:waypoint x="382" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="errorHandler_di" bpmnElement="errorHandler" isExpanded="true">
+        <dc:Bounds x="160" y="320" width="780" height="560" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="errStart_di" bpmnElement="errStart">
+        <dc:Bounds x="210" y="582" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="186" y="624" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="errKind_di" bpmnElement="errKind" isMarkerVisible="true">
+        <dc:Bounds x="330" y="575" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="246" y="556" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="errFlowStart_di" bpmnElement="errFlowStart">
+        <di:waypoint x="246" y="600" />
+        <di:waypoint x="330" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="errEndAuth_di" bpmnElement="errEndAuth">
+        <dc:Bounds x="720" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="764" y="393" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="errFlowAuth_di" bpmnElement="errFlowAuth">
+        <di:waypoint x="355" y="575" />
+        <di:waypoint x="355" y="400" />
+        <di:waypoint x="720" y="400" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="370" y="378" width="300" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="errEndNotFound_di" bpmnElement="errEndNotFound">
+        <dc:Bounds x="720" y="482" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="764" y="493" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="errFlowNotFound_di" bpmnElement="errFlowNotFound">
+        <di:waypoint x="355" y="575" />
+        <di:waypoint x="355" y="500" />
+        <di:waypoint x="720" y="500" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="370" y="478" width="300" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="errEndInvalid_di" bpmnElement="errEndInvalid">
+        <dc:Bounds x="720" y="582" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="764" y="593" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="errFlowInvalid_di" bpmnElement="errFlowInvalid">
+        <di:waypoint x="380" y="600" />
+        <di:waypoint x="720" y="600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="370" y="578" width="300" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="errEndUnavailable_di" bpmnElement="errEndUnavailable">
+        <dc:Bounds x="720" y="682" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="764" y="693" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="errFlowUnavailable_di" bpmnElement="errFlowUnavailable">
+        <di:waypoint x="355" y="625" />
+        <di:waypoint x="355" y="700" />
+        <di:waypoint x="720" y="700" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="370" y="678" width="300" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="errEndRejected_di" bpmnElement="errEndRejected">
+        <dc:Bounds x="720" y="782" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="764" y="793" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="errFlowRejected_di" bpmnElement="errFlowRejected">
+        <di:waypoint x="355" y="625" />
+        <di:waypoint x="355" y="800" />
+        <di:waypoint x="720" y="800" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="370" y="778" width="300" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

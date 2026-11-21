@@ -9,7 +9,9 @@
 //          resources: profile contact address preferences account orders loyalty billing shipping consents
 //   POST   /api/customer-snapshots      → 201 {id, ...body}
 //   GET    /__mock/calls                → every request received (method, uri, args, headers, body)
-//   DELETE /__mock/calls                → reset all state
+//   DELETE /__mock/calls                → reset all state (also clears faults)
+//   PUT    /__mock/faults               → {"method":"GET","uri":"/api/...","status":503,"body":{...}}
+//          every later matching request gets that answer instead (fault injection for error tests)
 
 const SEED = {
   '1042': {
@@ -111,7 +113,20 @@ function handle(r) {
     return send(r, 405, { message: 'method not allowed' });
   }
 
+  if (r.uri === '/__mock/faults') {
+    if (r.method !== 'PUT' || !body || !body.uri || !body.status) return send(r, 400, { message: 'method, uri, status required' });
+    const faults = getJson('faults', []);
+    faults.push(body);
+    setJson('faults', faults);
+    return send(r, 204);
+  }
+
   record(r, body);
+
+  const fault = getJson('faults', []).find(function (f) {
+    return f.uri === r.uri && (!f.method || f.method === r.method);
+  });
+  if (fault) return send(r, fault.status, fault.body === undefined ? { message: 'injected ' + fault.status } : fault.body);
 
   // ---- /api/users/{id}
   if ((m = r.uri.match(/^\/api\/users\/([^/]+)$/))) {

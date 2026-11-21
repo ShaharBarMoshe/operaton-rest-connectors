@@ -20,6 +20,8 @@ operaton:
 rest-connector:
   connect-timeout: 5s
   read-timeout: 30s
+  # execution variable holding the bearer token; every REST call sends "Authorization: Bearer <it>"
+  jwt-variable: accessToken
 
 logging:
   level:

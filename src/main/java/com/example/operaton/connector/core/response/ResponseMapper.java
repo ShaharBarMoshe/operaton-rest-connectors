@@ -28,6 +28,8 @@ import com.fasterxml.jackson.databind.node.MissingNode;
  */
 public class ResponseMapper {
 
+  private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(ResponseMapper.class);
+
   private final SchemaCompiler schemas;
   private final JsonComposer composer;
 
@@ -49,14 +51,17 @@ public class ResponseMapper {
     }
 
     JsonNode json = parse(response.body());
+    LOG.info("Response {}: {}", status, RequestFactory.describe(json));
     if (call.responseSchema() != null) {
       CompiledSchema schema = RequestFactory.compile(schemas, call.responseSchema(), SchemaUse.RESPONSE, "responseSchema", context);
       json = composer.shape(schema, json, context::evaluate);
       try {
         schemas.validate(schema, json, "Response");
       } catch (SchemaViolationException e) {
+        LOG.warn("Response rejected by responseSchema: {}", e.getMessage());
         throw new ConnectorError(ConnectorError.RESPONSE_INVALID, e.getMessage(), status, e);
       }
+      LOG.info("Response shaped by responseSchema -> {}", RequestFactory.describe(json));
     }
     return new RestResult(status, json);
   }

@@ -43,7 +43,8 @@ class LayerDependencyTest {
           "auth", Set.of(),
           "input", Set.of("auth"),
           "output", Set.of(),
-          "delegate", Set.of("input", "output")),
+          "trace", Set.of(),
+          "delegate", Set.of("input", "output", "trace")),
       "http", Map.of(
           "transport", Set.of(),
           "params", Set.of(),

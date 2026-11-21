@@ -100,6 +100,8 @@ class ModelPortabilityTest {
         String text = p.getTextContent() == null ? "" : p.getTextContent().trim();
         if (!p.getOperatonName().endsWith("Schema") || text.isEmpty()) continue;
         assertThat(text).as(where + " " + p.getOperatonName() + " contains ${..}; use \"x-expression\"").doesNotContain("${", "#{");
+        assertThat(text.lines().filter(l -> l.strip().startsWith("#")).toList())
+            .as(where + " " + p.getOperatonName() + " has comment lines; keep schemas comment-free").isEmpty();
         SchemaUse use = switch (p.getOperatonName()) {
           case "paramsSchema" -> SchemaUse.PARAMS;
           case "responseSchema" -> SchemaUse.RESPONSE;

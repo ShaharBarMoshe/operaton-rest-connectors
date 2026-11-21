@@ -2,11 +2,15 @@
 
 Operaton 2.2.2 · Spring Boot 4.1.3 · Java 17+ (build with a JDK: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn test`)
 
+**Presentation:** [live deck](https://claude.ai/artifact/YFdL12amgLmZpaWWpMQUkw) (private to its owner)
+· a copy in the repo: [`docs/presentation`](docs/presentation/README.md), open `docs/presentation/index.html`.
+
 ## Project layout
 
 ```
 .camunda/element-templates/   Modeler templates (the Modelers look for this folder name)
 docker-compose.yml            the nginx mock on :8081
+docs/presentation/            the slide deck (index.html to view)
 examples/                     start payloads for the engine REST API
 mock/nginx/                   mock service (nginx + njs)
 mock/openapi/                 its OpenAPI document, served as GET /openapi.yaml
@@ -20,6 +24,7 @@ src/main/java/com/example/operaton/
       input/     TaskInputs (task inputs → RestCall), ExecutionCallContext, EngineValues (Spin → plain)
       output/    ResultVariables: status / result → process variables (JSON → Spin Json)
       auth/      TokenProvider, VariableTokenProvider (rest-connector.jwt-variable)
+      trace/     CallJournal: the last REST call of each instance, in memory (for the run API)
     core/      the use case
       api/       the contract the engine layer uses: RestConnector, RestCall, RestResult, CallContext, TechnicalErrors
       error/     ConnectorError (business, → BPMN error), RestConnectorException (technical, → incident)
@@ -31,6 +36,7 @@ src/main/java/com/example/operaton/
       transport/   HttpTransport, HttpRequest, HttpResponse, TransportException (the contract)
       restclient/  RestClientHttpTransport (Spring RestClient on the JDK HttpClient)
       params/      HttpRequestParams: x-in → path / query / header, URI building
+  runner/      POST /api/process/{key}/run: ProcessRunController, ProcessRunner, RunResult
 src/main/resources/bpmn/      the sample models
 src/test/java/com/example/operaton/
   connector/{core/service,engine/auth,schema,config}/   unit tests per layer (no engine, fake transport)
@@ -85,6 +91,7 @@ fetches OAuth2 client-credentials tokens, or an `HttpTransport` with mTLS.
 | `headers` | optional static headers: JSON object string (`{"X-A": "${expr}"}`) or `camunda:map` |
 | `resultVariable` / `statusVariable` | where to store the response / HTTP status. A JSON object or array is stored as a Spin `Json` variable (Cockpit shows its value; read a field with `${snapshot.prop("id").stringValue()}`; usable as a source again), anything else as a plain value |
 | `technicalErrors` | `exception` (default) or `bpmnError`: how 5xx / timeouts / connection problems are raised, see [Errors](#errors) |
+| `mockEnabled` / `mockStatus` / `mockResponse` | test mode: answer with mock data instead of calling the service, see [Test mode](#test-mode-mock-data) |
 
 There is no authentication input: the connector reads the token from the execution itself, see
 [Authentication](#authentication-jwt).
@@ -288,6 +295,92 @@ remove those with history cleanup / `historyService.deleteHistoricProcessInstanc
 `user-sync` and `customer-snapshot` are started with `accessToken`; the nginx mock
 answers 401 on the customer endpoints without a `Bearer header.payload.signature` token
 (`CustomerSnapshotNginxTest`).
+
+## Test mode (mock data)
+
+Every REST task has three more inputs (group *Test mode (mock data)* in the templates):
+
+| input | |
+|---|---|
+| `mockEnabled` | `true` = do not send the request; empty / `false` = real call. Usually an expression, so a start variable switches the whole process: `${execution.getVariable('useMockData') == true}` |
+| `mockStatus` | the status the mock answers with, default `200`; `404`, `503`, ... test the error handling |
+| `mockResponse` | the response body (JSON or text); `${...}` inside is evaluated, so it can echo variables |
+
+In test mode the request is still **built and validated** (sources, params / body schemas), it is
+logged as `MOCK GET ... - not sent`, and the mock answer goes through the normal response handling:
+status → BPMN errors, response schema, result / status variables. A mock body that breaks the
+pasted response schema ends in `RESPONSE_INVALID`, like a real one would.
+
+All three sample models carry mock data on every REST task behind the `useMockData` switch:
+
+```bash
+curl -X POST -H 'Content-Type: application/json' -d @examples/start-customer-snapshot-mock.json \
+  localhost:8080/engine-rest/process-definition/key/customer-snapshot/start   # no request leaves the app
+```
+
+`MockModeProcessTest` runs each model with `useMockData = true` and checks that the service received
+nothing, and that without the switch the same model calls the service.
+
+## Run a process and get its result: `POST /api/process/{key}/run`
+
+Starts a process, **waits until the instance has ended** and answers with its outcome, in one
+request. Variables are plain JSON (objects / arrays become `Json` variables):
+
+```bash
+curl -X POST localhost:8080/api/process/customer-snapshot/run -H 'Content-Type: application/json' -d '{
+  "variables": {"apiBaseUrl": "http://localhost:8081/api", "customerId": 501,
+                "accessToken": "eyJ...", "initiator": "demo"}}'
+```
+
+```json
+{"status": "SUCCESS", "processKey": "customer-snapshot", "processInstanceId": "5e9e...", "endEvent": "end",
+ "durationMs": 462,
+ "response": {"task": "postSnapshot", "method": "POST", "url": "http://localhost:8081/api/customer-snapshots",
+              "httpStatus": 201, "body": {"id": "s-1", "customerId": 501, ...}}}
+```
+
+- **SUCCESS**: the instance completed without an error event or incident; `response` is the **last
+  REST call** of the instance and what it answered (`"mocked": true` in test mode).
+- **FAILURE**, with `reason`:
+
+  | reason | when | |
+  |---|---|---|
+  | `BPMN_ERROR` | an error boundary event, error event subprocess or error end event ran | `error` = the caught code and message (`HTTP_404`, `RESPONSE_INVALID`, ...) and the task; `lastCall` |
+  | `INCIDENT` | a job failed (async task, retries used up) | `error.message` = the incident |
+  | `EXCEPTION` | the start itself failed (a technical error; nothing was kept) | `error.message` |
+  | `TIMEOUT` | not ended within `?timeoutSeconds=` (default `rest-connector.run-timeout`, 30s) | `processInstanceId` to look it up |
+
+- Always HTTP 200 with the status; 404 for an unknown process key.
+- Instances with async continuations are waited for. The last call is taken from an in-memory
+  journal (`CallJournal`, last call per instance, at most `rest-connector.journal-size` instances,
+  never in the database), because the instance's variables are deleted when it completes.
+
+`ProcessRunApiTest` covers each case.
+
+## Logs
+
+Every REST task logs, at INFO, one line per step, all tagged `[<process instance> <task>]`:
+
+```
+[5e9e... postSnapshot] START POST 'POST merged snapshot' (url ..., sources 5, auth bearer token)
+[5e9e... postSnapshot] Merge: 5 source(s) -> object {customer, _links, address, account, loyalty}
+[5e9e... postSnapshot] Schema (REQUEST): parsed 1895 chars as components, $ref #/components/schemas/CustomerSnapshot (9 properties), dialect OPENAPI_31, compiled in 12 ms
+[5e9e... postSnapshot] Request body: valid
+[5e9e... postSnapshot] Body: built by bodySchema -> object {customerId, name, birthDate, contact, ...}
+[5e9e... postSnapshot] HTTP POST http://localhost:8081/api/customer-snapshots
+[5e9e... postSnapshot] HTTP POST answered 201 in 9 ms (351 bytes)
+[5e9e... postSnapshot] Response 201: object {id, customerId, ...}
+[5e9e... postSnapshot] Response: valid
+[5e9e... postSnapshot] END POST 'POST merged snapshot' 201 in 54 ms, result -> snapshot, status -> postStatus
+RUN customer-snapshot 5e9e...: SUCCESS at 'end' in 458 ms, last call postSnapshot 201
+```
+
+Also: `Params: path [customerId] query [] headers []`, `MOCK GET ... - not sent`, WARN lines for
+rejected requests / responses (with the violations), BPMN errors (`END ... with BPMN error HTTP_404`)
+and failed connections, ERROR for technical failures. Schema parsing is logged when a schema is first
+compiled (later runs use the cache). The lines show shapes and key names, not values; DEBUG
+(`logging.level.com.example.operaton.connector: DEBUG`) adds the merged sources and the request /
+response bodies. The bearer token is never logged.
 
 ## Errors
 

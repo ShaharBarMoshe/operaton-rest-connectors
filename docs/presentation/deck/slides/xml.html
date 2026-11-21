@@ -1,0 +1,14 @@
+<section id="xml" class="dark">
+<p class="eyebrow">IN THE MODEL</p>
+<h2>A REST task in the BPMN file</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<p class="code in" style="--i:0;flex:1.4">&lt;bpmn:serviceTask id="getProfile" name="GET profile"<br>&#160;&#160;<span class="k">camunda:delegateExpression="${restGet}"</span>&gt;<br>&#160;&lt;camunda:inputOutput&gt;<br>&#160;&#160;&lt;camunda:inputParameter name=<span class="k">"url"</span>&gt;<br>&#160;&#160;&#160;${apiBaseUrl}/customers/{customerId}/profile&lt;/…&gt;<br>&#160;&#160;&lt;camunda:inputParameter name=<span class="k">"paramsSchema"</span>&gt;<br>&#160;&#160;&#160;- name: customerId<br>&#160;&#160;&#160;&#160;&#160;in: path …&lt;/…&gt;<br>&#160;&#160;&lt;camunda:inputParameter name=<span class="k">"resultVariable"</span>&gt;<br>&#160;&#160;&#160;profile&lt;/…&gt;<br>&#160;&#160;&lt;camunda:inputParameter name=<span class="k">"mockEnabled"</span>&gt;<br>&#160;&#160;&#160;${execution.getVariable('useMockData') == true}&lt;/…&gt;<br>&#160;&#160;<span class="c">… every other input, empty or mock data</span></p>
+<div class="col in" style="--i:1;flex:0.6">
+<h3>Camunda 7 format</h3>
+<p class="small">The <span class="mono">camunda:</span> namespace plus <span class="mono">executionPlatform="Camunda Platform"</span>: Camunda Modeler and the VS Code BPMN extension show every input.</p>
+<h3 style="margin-top:40px">Runs on Operaton</h3>
+<p class="small">The Operaton engine reads <span class="mono">camunda:</span> as is. Tested with Camunda-Modeler-saved files.</p>
+</div>
+</div>
+<aside>In the properties panel this is Implementation: Delegate expression, and Inputs: one row per parameter. The element templates in .camunda/element-templates turn the same thing into a labelled form. The parameters are pasted from the service's OpenAPI; customerId is filled from the process variable of the same name.</aside>
+</section>

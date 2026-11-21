@@ -20,9 +20,20 @@ operaton:
 rest-connector:
   connect-timeout: 5s
   read-timeout: 30s
+  # POST /api/process/{key}/run: how long to wait for the instance to end, how many instances'
+  # last REST call to keep in memory for it
+  run-timeout: 30s
+  journal-size: 1000
   # execution variable holding the bearer token; every REST call sends "Authorization: Bearer <it>"
   jwt-variable: accessToken
 
 logging:
+  pattern:
+    # %X{restTask}: "[<process instance> <task>] " on every line a REST task writes, empty otherwise
+    level: "%5p %X{restTask:-}"
   level:
-    com.example.operaton.rest: DEBUG
+    # INFO: each task's START / END / BPMN error, merge, params, schema parsing, validation and HTTP
+    # summaries (shapes and key names, no values). DEBUG adds request / response bodies; the bearer
+    # token is never logged.
+    com.example.operaton.connector: INFO
+    com.example.operaton.runner: INFO

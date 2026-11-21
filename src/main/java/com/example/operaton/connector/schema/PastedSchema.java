@@ -46,10 +46,17 @@ final class PastedSchema {
 
   private final ObjectNode document;
   private final Dialect dialect;
+  private final String description;
 
-  private PastedSchema(ObjectNode document, Dialect dialect) {
+  private PastedSchema(ObjectNode document, Dialect dialect, String description) {
     this.document = document;
     this.dialect = dialect;
+    this.description = description;
+  }
+
+  /** What was pasted and where the target was found, for the logs. */
+  String description() {
+    return description;
   }
 
   ObjectNode document() {
@@ -68,6 +75,7 @@ final class PastedSchema {
     JsonNode root = pasted;
     JsonNode target = pasted;
     Dialect dialect = Dialect.OPENAPI_31;              // fragments: JSON Schema 2020-12 + OpenAPI vocabulary
+    StringBuilder what = new StringBuilder(pasted.isArray() ? "parameters list" : "schema");
     if (root.isObject() && (root.has("openapi") || root.has("swagger") || root.has("paths")
         || (root.has("$ref") && (root.has("components") || root.has("definitions"))))) {
       if (!root.has("$ref")) {
@@ -75,6 +83,10 @@ final class PastedSchema {
             + "\"$ref\" naming what to use, e.g. \"$ref\": \"#/components/schemas/Customer\"");
       }
       String ref = root.get("$ref").asText();
+      what.setLength(0);
+      what.append(root.has("openapi") ? "OpenAPI " + root.get("openapi").asText() + " document"
+          : root.has("swagger") ? "Swagger " + root.get("swagger").asText() + " document" : "components")
+          .append(", $ref ").append(ref);
       if (root.has("openapi") || root.has("swagger")) {
         // a real document: let swagger-parser read it (Swagger 2.0 → OpenAPI 3.0, spec errors)
         root = OpenApiDocuments.normalize(root);
@@ -83,8 +95,9 @@ final class PastedSchema {
       }
       target = resolve(root, ref);
     }
-    Locator locator = new Locator(root, use);
+    Locator locator = new Locator(root, use, new java.util.ArrayList<>());
     target = locator.unwrap(target);
+    locator.steps().forEach(step -> what.append(" -> ").append(step));
     JsonNode schema = target.isArray() ? locator.parameters((ArrayNode) target) : target.deepCopy();
 
     ObjectNode document = root.isObject() ? ((ObjectNode) root).deepCopy() : F.objectNode();
@@ -94,12 +107,15 @@ final class PastedSchema {
     if (dialect == Dialect.OPENAPI_31) {
       olderKeywords(document);                         // OpenAPI 3.0 / Swagger 2 style in a fragment
     }
-    return new PastedSchema(document, dialect);
+    if (schema.has("properties") && schema.get("properties").isObject()) {
+      what.append(" (").append(schema.get("properties").size()).append(" properties)");
+    }
+    return new PastedSchema(document, dialect, what.toString());
   }
 
   // ------------------------------------------------------------- finding the target
 
-  private record Locator(JsonNode root, SchemaUse use) {
+  private record Locator(JsonNode root, SchemaUse use, java.util.List<String> steps) {
 
     /** requestBody / response / responses map / operation / Swagger 2 body parameter → schema. */
     JsonNode unwrap(JsonNode node) {
@@ -110,16 +126,20 @@ final class PastedSchema {
         }
         if (node.has("operationId") || node.has("responses") || node.has("requestBody")
             || (node.has("parameters") && node.get("parameters").isArray())) {   // an operation
+          steps.add("operation");
           node = switch (use) {
             case PARAMS -> require(node, "parameters", "operation has no parameters");
             case REQUEST -> node.has("requestBody") ? node.get("requestBody") : swagger2Body(node);
             case RESPONSE -> require(node, "responses", "operation has no responses");
           };
         } else if (node.get("content") != null && node.get("content").isObject()) {
+          steps.add("content");
           node = mediaTypeSchema(node.get("content"));
         } else if (node.has("schema") && (node.has("description") || "body".equals(node.path("in").asText()))) {
+          steps.add("schema");
           node = node.get("schema");                                          // Swagger 2 response / body param
         } else if (isResponsesMap(node)) {
+          steps.add("responses");
           node = successResponse(node);
         } else {
           return node;

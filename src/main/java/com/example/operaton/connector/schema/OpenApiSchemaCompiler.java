@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
  */
 public class OpenApiSchemaCompiler implements SchemaCompiler {
 
+  private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(OpenApiSchemaCompiler.class);
+
   private final JsonComposer composer;
   private final JsonSchemaFactory openApi30;
   private final JsonSchemaFactory openApi31;
@@ -76,7 +78,13 @@ public class OpenApiSchemaCompiler implements SchemaCompiler {
   @Override
   public CompiledSchema compile(String text, SchemaUse use) {
     String trimmed = text.strip();
+    CompiledSchema cached = cache.get(use + "\u0000" + trimmed);
+    if (cached != null) {
+      LOG.debug("Schema ({}): cached", use);
+      return cached;
+    }
     return cache.computeIfAbsent(use + "\u0000" + trimmed, key -> {
+      long start = System.nanoTime();
       PastedSchema pasted = PastedSchema.locate(parse(trimmed), use);
       String json = pasted.document().toString();
       String uri = "urn:pasted:" + sha256(json);
@@ -84,6 +92,8 @@ public class OpenApiSchemaCompiler implements SchemaCompiler {
       JsonSchemaFactory factory = pasted.dialect() == PastedSchema.Dialect.OPENAPI_30 ? openApi30 : openApi31;
       JsonSchema validator = factory.getSchema(SchemaLocation.of(uri + "#/" + PastedSchema.TARGET), config(use));
       validator.initializeValidators();          // resolve every $ref now: a broken paste fails at compile time
+      LOG.info("Schema ({}): parsed {} chars as {}, dialect {}, compiled in {} ms", use, trimmed.length(),
+          pasted.description(), pasted.dialect(), (System.nanoTime() - start) / 1_000_000);
       return new CompiledSchema(pasted.document(), pasted.target(), validator, use);
     });
   }
@@ -125,7 +135,9 @@ public class OpenApiSchemaCompiler implements SchemaCompiler {
   @Override
   public void validate(CompiledSchema schema, JsonNode document, String what) {
     Set<ValidationMessage> errors = schema.validator().validate(document.isMissingNode() ? composer.parse("null") : document);
-    if (!errors.isEmpty()) {
+    if (errors.isEmpty()) {
+      LOG.info("{}: valid", what);
+    } else {
       throw new SchemaViolationException(what, errors.stream().map(ValidationMessage::getMessage).sorted().collect(Collectors.toList()));
     }
   }

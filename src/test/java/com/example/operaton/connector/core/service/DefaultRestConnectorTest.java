@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.operaton.connector.core.api.CallContext;
+import com.example.operaton.connector.core.api.MockResponse;
 import com.example.operaton.connector.core.api.RestCall;
 import com.example.operaton.connector.core.api.RestConnector;
 import com.example.operaton.connector.core.api.RestResult;
@@ -50,8 +51,13 @@ class DefaultRestConnectorTest {
   };
 
   RestCall call(HttpMethod method, String params, String body, String token, TechnicalErrors errors, List<?> sources) {
-    return new RestCall(method, params == null ? "http://api/customers" : "http://api/customers/{customerId}", sources, params, body, null,
-        Map.of("Authorization", "Basic old", "X-A", "1"), token, true, errors);
+    return call(method, params, body, token, errors, sources, null, null);
+  }
+
+  RestCall call(HttpMethod method, String params, String body, String token, TechnicalErrors errors, List<?> sources,
+                String responseSchema, MockResponse mock) {
+    return new RestCall(method, params == null ? "http://api/customers" : "http://api/customers/{customerId}", sources, params, body,
+        responseSchema, Map.of("Authorization", "Basic old", "X-A", "1"), token, true, errors, mock);
   }
 
   static final String PARAMS = """
@@ -111,5 +117,34 @@ class DefaultRestConnectorTest {
         .isInstanceOf(RestConnectorException.class).hasMessageContaining("connect timed out");
     assertThatThrownBy(() -> connector.execute(call(HttpMethod.GET, null, null, null, TechnicalErrors.BPMN_ERROR, List.of()), context))
         .isInstanceOfSatisfying(ConnectorError.class, e -> assertThat(e.code()).isEqualTo(ConnectorError.CONNECTION_FAILED));
+  }
+
+  // ------------------------------------------------------------------ test mode
+
+  @Test
+  void mockModeSendsNothing_butBuildsAndValidatesTheRequest() {
+    MockResponse mock = new MockResponse(201, "{\"id\": \"m-1\", \"noise\": 1}");
+    String responseSchema = "{type: object, required: [id], properties: {id: {type: string}}}";
+    RestResult result = connector.execute(call(HttpMethod.GET, PARAMS, null, null, null, List.of(), responseSchema, mock), context);
+
+    assertThat(sent).isEmpty();
+    assertThat(result.status()).isEqualTo(201);
+    assertThat(result.body().toString()).isEqualTo("{\"id\":\"m-1\"}");          // response schema applied
+
+    String body = "{type: object, required: [name], properties: {name: {type: string}}}";
+    assertThatThrownBy(() -> connector.execute(call(HttpMethod.POST, null, body, null, null, List.of(), null, mock), context))
+        .isInstanceOfSatisfying(ConnectorError.class, e -> assertThat(e.code()).isEqualTo(ConnectorError.REQUEST_INVALID));
+  }
+
+  @Test
+  void mockStatusDrivesTheErrorHandling() {
+    MockResponse notFound = new MockResponse(404, "{\"message\": \"no such customer\"}");
+    assertThatThrownBy(() -> connector.execute(call(HttpMethod.GET, null, null, null, null, List.of(), null, notFound), context))
+        .isInstanceOfSatisfying(ConnectorError.class, e -> assertThat(e.code()).isEqualTo("HTTP_404"));
+
+    MockResponse unavailable = new MockResponse(503, "");
+    assertThatThrownBy(() -> connector.execute(call(HttpMethod.GET, null, null, null, TechnicalErrors.BPMN_ERROR, List.of(), null, unavailable), context))
+        .isInstanceOfSatisfying(ConnectorError.class, e -> assertThat(e.code()).isEqualTo("HTTP_503"));
+    assertThat(sent).isEmpty();
   }
 }

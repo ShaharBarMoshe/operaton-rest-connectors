@@ -1,0 +1,12 @@
+<section id="howto">
+<p class="eyebrow">HOW TO USE IT</p>
+<h2>Adding a REST call to a process</h2>
+<div class="howto">
+<div class="hrow in" style="--i:0"><p class="hnum">1</p><p class="htext"><b>Add a Service Task</b> in Camunda Modeler or the VS Code BPMN extension. <span class="m">Open the project folder so the templates load, then pick a template such as “REST GET”; or set Delegate expression <span class="mono">${restGet}</span> by hand.</span></p></div>
+<div class="hrow in" style="--i:1"><p class="hnum">2</p><p class="htext"><b>Fill the inputs:</b> <span class="mono">url</span>, <span class="mono">sources</span>, <span class="mono">resultVariable</span>, and paste the params or body schema from the service’s OpenAPI. <span class="m">Leave the rest empty.</span></p></div>
+<div class="hrow in" style="--i:2"><p class="hnum">3</p><p class="htext"><b>Model the errors you care about:</b> an error boundary event with <span class="mono">HTTP_404</span>, <span class="mono">HTTP_401</span> or <span class="mono">REQUEST_INVALID</span>. <span class="m">Set async-before for automatic retries on 5xx.</span></p></div>
+<div class="hrow in" style="--i:3"><p class="hnum">4</p><p class="htext"><b>Commit.</b> <span class="m">The pre-commit hook runs</span> <span class="mono">scripts/make-portable.py</span><span class="m">: it unlinks the template, adds missing inputs and keeps the</span> <span class="mono">camunda:</span> <span class="m">format.</span></p></div>
+<div class="hrow in" style="--i:4"><p class="hnum">5</p><p class="htext"><b>Start the process</b> with its variables, e.g. <span class="mono">apiBaseUrl</span>, <span class="mono">customerId</span>, <span class="mono">accessToken</span>. <span class="m">Add</span> <span class="mono">useMockData = true</span> <span class="m">to run on mock data.</span></p></div>
+</div>
+<aside>Five steps from an empty task to a running call. Try it locally: docker compose up -d --wait starts the nginx mock, java -jar starts the app, and examples/start-customer-snapshot.json is a ready-made start request; start-customer-snapshot-mock.json runs it on mock data.</aside>
+</section>

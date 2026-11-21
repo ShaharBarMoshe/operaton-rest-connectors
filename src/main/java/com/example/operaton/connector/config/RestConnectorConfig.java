@@ -7,6 +7,8 @@ import com.example.operaton.connector.core.response.ResponseMapper;
 import com.example.operaton.connector.engine.delegate.RestConnectorDelegate;
 import com.example.operaton.connector.engine.input.TaskInputs;
 import com.example.operaton.connector.engine.output.ResultVariables;
+import com.example.operaton.connector.engine.trace.CallJournal;
+import com.example.operaton.connector.engine.trace.InMemoryCallJournal;
 import com.example.operaton.connector.engine.auth.TokenProvider;
 import com.example.operaton.connector.engine.auth.VariableTokenProvider;
 import com.example.operaton.connector.http.transport.HttpTransport;
@@ -90,6 +92,11 @@ public class RestConnectorConfig {
   }
 
   @Bean
+  public CallJournal callJournal(RestConnectorProperties properties) {
+    return new InMemoryCallJournal(properties.journalSize());
+  }
+
+  @Bean
   public ResultVariables resultVariables(JsonComposer composer) {
     return new ResultVariables(composer);
   }
@@ -101,31 +108,36 @@ public class RestConnectorConfig {
 
   /** {@code camunda:delegateExpression="${restGet}"}: params only, no body. */
   @Bean
-  public RestConnectorDelegate restGet(TaskInputs inputs, RestConnector connector, ResultVariables results) {
-    return new RestConnectorDelegate(HttpMethod.GET, false, inputs, connector, results);
+  public RestConnectorDelegate restGet(TaskInputs inputs, RestConnector connector, ResultVariables results,
+                                           CallJournal journal) {
+    return new RestConnectorDelegate(HttpMethod.GET, false, inputs, connector, results, journal);
   }
 
   /** {@code ${restPut}}: replace; without bodySchema the merged sources are the body. */
   @Bean
-  public RestConnectorDelegate restPut(TaskInputs inputs, RestConnector connector, ResultVariables results) {
-    return new RestConnectorDelegate(HttpMethod.PUT, true, inputs, connector, results);
+  public RestConnectorDelegate restPut(TaskInputs inputs, RestConnector connector, ResultVariables results,
+                                           CallJournal journal) {
+    return new RestConnectorDelegate(HttpMethod.PUT, true, inputs, connector, results, journal);
   }
 
   /** {@code ${restUpdate}}: PATCH; without bodySchema the merged sources are the body. */
   @Bean
-  public RestConnectorDelegate restUpdate(TaskInputs inputs, RestConnector connector, ResultVariables results) {
-    return new RestConnectorDelegate(HttpMethod.PATCH, true, inputs, connector, results);
+  public RestConnectorDelegate restUpdate(TaskInputs inputs, RestConnector connector, ResultVariables results,
+                                           CallJournal journal) {
+    return new RestConnectorDelegate(HttpMethod.PATCH, true, inputs, connector, results, journal);
   }
 
   /** {@code ${restPost}}: create; without bodySchema the merged sources are the body. */
   @Bean
-  public RestConnectorDelegate restPost(TaskInputs inputs, RestConnector connector, ResultVariables results) {
-    return new RestConnectorDelegate(HttpMethod.POST, true, inputs, connector, results);
+  public RestConnectorDelegate restPost(TaskInputs inputs, RestConnector connector, ResultVariables results,
+                                           CallJournal journal) {
+    return new RestConnectorDelegate(HttpMethod.POST, true, inputs, connector, results, journal);
   }
 
   /** {@code ${restDelete}}: params only, no body. */
   @Bean
-  public RestConnectorDelegate restDelete(TaskInputs inputs, RestConnector connector, ResultVariables results) {
-    return new RestConnectorDelegate(HttpMethod.DELETE, false, inputs, connector, results);
+  public RestConnectorDelegate restDelete(TaskInputs inputs, RestConnector connector, ResultVariables results,
+                                           CallJournal journal) {
+    return new RestConnectorDelegate(HttpMethod.DELETE, false, inputs, connector, results, journal);
   }
 }

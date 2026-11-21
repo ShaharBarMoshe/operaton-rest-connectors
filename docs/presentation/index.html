@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operaton REST Connectors</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="deck/deck.css">
+<style>
+  /* local viewer for the deck sources in deck/: every slide on its 1920x1080 canvas, scaled to the window */
+  * { margin: 0 }
+  html { background: #2A2F3A }
+  body { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 24px 0 }
+  body > section { width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden; position: relative; flex: none;
+    zoom: min(1, calc((100vw - 32px) / 1920px)); box-shadow: 0 8px 32px #0006 }
+  aside { display: none }
+  table { border-collapse: collapse } th, td { padding: .35em .6em; text-align: left; border-bottom: 2px solid #0002 }
+  x-icon { display: block }
+</style></head>
+<body>
+<section id="cover" class="dark" data-transition="fade" style="justify-content:space-between">
+<p class="eyebrow">OPERATON · SPRING BOOT · CAMUNDA 7 MODELS</p>
+<div>
+<h1 class="in" style="--i:0">REST connectors<br>for Operaton</h1>
+<p class="lead in" style="--i:1;margin-top:40px;width:1300px">One service task per HTTP action. The request is built from process variables by the schema you paste from the service’s OpenAPI – no HTTP code in the model.</p>
+</div>
+<p class="small mono">restGet · restPut · restUpdate · restPost · restDelete</p>
+<aside>This deck explains the REST connectors: what they do, which input variables you set on a service task, what they write back, how schemas are pasted from another service's OpenAPI or Swagger document, how to test without calling the service, and how to use them from Camunda Modeler or the VS Code BPMN extension while running on the Operaton engine.</aside>
+</section>
+
+<section id="idea" class="accent" style="justify-content:center">
+<p class="eyebrow" style="color:#131B2E">THE IDEA</p>
+<p class="statement">The model says <i>which data</i> to send. The connector does the HTTP.</p>
+<p class="lead" style="color:#131B2E;margin-top:48px;width:1400px">You give a URL, the variables to use and the schema copied from the target service’s OpenAPI / Swagger. Merging, shaping, validation, the call, errors and storing the result are handled for you.</p>
+<aside>The core idea: modelers should not write HTTP code or scripts in the BPMN. They describe the request declaratively, with the schema the other service already publishes. Everything else is the connector’s job, the same way for every REST task.</aside>
+</section>
+
+<section id="pipeline">
+<p class="eyebrow">HOW IT WORKS</p>
+<h2>What happens when a REST task runs</h2>
+<div class="steps">
+<div class="step in" style="--i:0"><p class="num">01</p><p class="stitle">Read sources</p><p class="sbody">Variables named in <span class="mono">sources</span>, or JSON literals</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:1"><p class="num">02</p><p class="stitle">Deep-merge</p><p class="sbody">In order; later wins, arrays are replaced</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:2"><p class="num">03</p><p class="stitle">Shape by schema</p><p class="sbody">Pick, rename, default, coerce; only declared fields</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:3"><p class="num">04</p><p class="stitle">Validate</p><p class="sbody">In the OpenAPI dialect; a bad request is never sent</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step http in" style="--i:4"><p class="num">05</p><p class="stitle">HTTP call</p><p class="sbody">Path, query, headers, Bearer token, body; or the mock answer</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:5"><p class="num">06</p><p class="stitle">Store result</p><p class="sbody">Optional response schema, then JSON into a variable</p></div>
+</div>
+<p class="lead" style="margin-top:56px">Steps 03–04 run twice when both are set: <span class="mono">paramsSchema</span> builds the URL params and headers, <span class="mono">bodySchema</span> builds the body. In test mode step 05 sends nothing.</p>
+<aside>Walk through the pipeline left to right. The same merged document feeds both the params schema and the body schema, and each schema both builds and validates. In test mode the request is still built and validated, only the call itself is replaced by the mock answer.</aside>
+</section>
+
+<section id="connectors" class="alt">
+<p class="eyebrow">THE CONNECTORS</p>
+<h2>Five beans, one per HTTP action</h2>
+<table>
+<tr><th style="width:34%">Delegate expression</th><th style="width:16%">HTTP</th><th style="width:20%">Body by default</th><th style="width:30%">Typical use</th></tr>
+<tr><td class="tmono">${restGet}</td><td>GET</td><td>no</td><td>read data</td></tr>
+<tr><td class="tmono">${restPut}</td><td>PUT</td><td>yes</td><td>replace a resource</td></tr>
+<tr><td class="tmono">${restUpdate}</td><td>PATCH</td><td>yes</td><td>partial update</td></tr>
+<tr><td class="tmono">${restPost}</td><td>POST</td><td>yes</td><td>create / submit</td></tr>
+<tr><td class="tmono">${restDelete}</td><td>DELETE</td><td>no</td><td>remove</td></tr>
+</table>
+<p class="lead" style="margin-top:48px">All five take the same inputs. Set on a Service Task: <b>Implementation → Delegate expression</b>. “Body by default” means: with no <span class="mono">bodySchema</span>, the merged sources are sent as they are.</p>
+<aside>Each connector is a Spring bean implementing JavaDelegate. The only difference between them is the HTTP method and whether the merged sources become the body when no body schema is given.</aside>
+</section>
+
+<section id="inputs">
+<p class="eyebrow">INPUT VARIABLES · THE REQUEST</p>
+<h2>What you set on the task</h2>
+<table style="font-size:24px">
+<tr><th style="width:21%">Input</th><th style="width:43%">What it does</th><th style="width:36%">Example</th></tr>
+<tr><td class="tmono">url</td><td>Required. <span class="mono">{name}</span> placeholders are filled from path params</td><td class="tmono">${apiBaseUrl}/users/{userId}</td></tr>
+<tr><td class="tmono">sources</td><td>Variable names (or JSON literals), deep-merged in this order</td><td class="tmono">currentUser, userChanges</td></tr>
+<tr><td class="tmono">paramsSchema</td><td>The operation’s OpenAPI <span class="mono">parameters</span>, pasted → path, query, header</td><td class="tmono">- name: customerId<br>&#160;&#160;in: path</td></tr>
+<tr><td class="tmono">bodySchema</td><td>The request schema pasted from OpenAPI / Swagger → builds and validates the body</td><td class="tmono">$ref: '#/components/…'</td></tr>
+<tr><td class="tmono">headers</td><td>Static headers as a JSON object; values may use expressions</td><td class="tmono">{"X-Correlation-Id": "${…}"}</td></tr>
+<tr><td class="tmono">mockEnabled<br>mockStatus<br>mockResponse</td><td>Test mode: answer with mock data instead of calling the service</td><td class="tmono">${execution.getVariable(<br>&#160;'useMockData') == true}</td></tr>
+</table>
+<p class="small" style="margin-top:28px">No token input: the connector sends the <span class="mono">accessToken</span> execution variable. Schemas are pasted as JSON or YAML, without comments, and must not contain <span class="mono">${…}</span>; use <span class="mono">x-expression</span> instead.</p>
+<aside>Every REST task in the models carries all inputs, empty when unused, so any modeler shows the full list. The schema rules: paste the schema itself, JSON or YAML, no comment lines, and no dollar-brace expressions inside the schema text because the engine would evaluate them first.</aside>
+</section>
+
+<section id="outputs" class="alt">
+<p class="eyebrow">OUTPUT VARIABLES · THE RESPONSE</p>
+<h2>What the task writes back</h2>
+<div class="row">
+<div class="col" style="flex:1">
+<div class="card in" style="--i:0"><p class="tag">resultVariable</p><p class="body">Receives the response body as a <span class="mono">Json</span> variable. Read a field with <span class="mono">${snapshot.prop("id").stringValue()}</span>, or use it as a source of a later task.</p></div>
+<div class="card in" style="--i:1;margin-top:24px"><p class="tag">statusVariable</p><p class="body">Receives the HTTP status code, e.g. <span class="mono">201</span>.</p></div>
+<div class="card in" style="--i:2;margin-top:24px"><p class="tag">responseSchema</p><p class="body">Optional, pasted from OpenAPI. Keeps only declared fields (no writeOnly ones) and validates before storing.</p></div>
+</div>
+<div class="col" style="flex:1.1">
+<p class="codelabel">WHEN SOMETHING GOES WRONG</p>
+<table style="font-size:24px">
+<tr><th style="width:50%">Situation</th><th style="width:50%">Result</th></tr>
+<tr><td>Request breaks its schema</td><td class="tmono">BpmnError REQUEST_INVALID</td></tr>
+<tr><td>Response breaks its schema</td><td class="tmono">BpmnError RESPONSE_INVALID</td></tr>
+<tr><td>HTTP 4xx (401, 404 …)</td><td class="tmono">BpmnError HTTP_404 …</td></tr>
+<tr><td>HTTP 5xx, timeout, I/O</td><td>Exception (incident / retry), or <span class="mono">HTTP_5xx</span> / <span class="mono">CONNECTION_FAILED</span> with <span class="mono">technicalErrors = bpmnError</span></td></tr>
+<tr><td>Missing source variable, malformed token, bad input</td><td>Exception → incident</td></tr>
+</table>
+<p class="small" style="margin-top:24px">Catch a BpmnError with an error boundary event on the task, e.g. <span class="mono">HTTP_404</span> → “User not found”.</p>
+</div>
+</div>
+<aside>Outputs are optional: leave resultVariable empty for fire-and-forget calls. Business errors (4xx, schema problems) become BPMN errors you can model; technical errors (5xx, network) become incidents so operations can retry. Mock answers in test mode go through exactly the same rules.</aside>
+</section>
+
+<section id="merge">
+<p class="eyebrow">EXAMPLE 1 · PUT /users/1042</p>
+<h2>Two objects + one schema = the body</h2>
+<div class="row" style="gap:24px;align-items:flex-start">
+<div class="col in" style="--i:0">
+<p class="codelabel">currentUser (GET result)</p>
+<p class="code">{"user": {<br>&#160;"id": 1042,<br>&#160;"name": "Maya Lin",<br>&#160;"contact": {<br>&#160;&#160;"email": "maya.lin@…",<br>&#160;&#160;"phone": "+1-555-0192"},<br>&#160;"preferences": {<br>&#160;&#160;"theme": "light",<br>&#160;&#160;"notifications": {<br>&#160;&#160;&#160;"email": true,<br>&#160;&#160;&#160;"sms": false}}}}</p>
+</div>
+<div class="col in" style="--i:1">
+<p class="codelabel">userChanges (start var)</p>
+<p class="code">{"user": {<br>&#160;"contact": {<br>&#160;&#160;<span class="k">"phone": "+1-555-0148"</span>},<br>&#160;"preferences": {<br>&#160;&#160;<span class="k">"theme": "dark"</span>,<br>&#160;&#160;"notifications": {<br>&#160;&#160;&#160;<span class="k">"sms": true</span>,<br>&#160;&#160;&#160;<span class="k">"push": true</span>}},<br>&#160;<span class="k">"roles": ["editor",</span><br>&#160;&#160;<span class="k">"reviewer"]</span>}}</p>
+</div>
+<div class="col in" style="--i:2">
+<p class="codelabel">→ request body</p>
+<p class="code">{"user": {<br>&#160;"id": 1042,<br>&#160;"name": "Maya Lin",<br>&#160;"contact": {<br>&#160;&#160;"email": "maya.lin@…",<br>&#160;&#160;<span class="k">"phone": "+1-555-0148"</span>},<br>&#160;"preferences": {<br>&#160;&#160;<span class="k">"theme": "dark"</span>,<br>&#160;&#160;"notifications": {"email":<br>&#160;&#160;&#160;true, <span class="k">"sms": true,</span><br>&#160;&#160;&#160;<span class="k">"push": true</span>}},<br>&#160;<span class="k">"roles": [ … ]</span>}}</p>
+</div>
+</div>
+<p class="small" style="margin-top:28px"><span class="mono">sources = currentUser, userChanges</span> · later source wins · the “merged user” schema keeps only known fields, coerces types and checks required ones.</p>
+<aside>This is the original example from the requirements. currentUser comes from a GET, userChanges is a start variable. Orange marks what the second object changed or added. The schema then drops anything it does not know, for example an internalScore field from the API.</aside>
+</section>
+
+<section id="keywords" class="alt">
+<p class="eyebrow">SCHEMA KEYWORDS</p>
+<h2>How a schema finds each value</h2>
+<div class="grid3">
+<div class="card in" style="--i:0"><p class="tag">same name</p><p class="body">A property takes the value with the same name from the merged sources; a parameter falls back to the process variable of that name.</p></div>
+<div class="card in" style="--i:1"><p class="tag">x-source</p><p class="body">JSON pointer to take it from elsewhere: <span class="mono">"/customer/firstName"</span> → <span class="mono">name.first</span></p></div>
+<div class="card in" style="--i:2"><p class="tag">x-expression</p><p class="body">An engine expression <b>without</b> <span class="mono">${ }</span>: <span class="mono">"initiator"</span>, <span class="mono">"execution.processInstanceId"</span></p></div>
+<div class="card in" style="--i:3"><p class="tag">in · x-in</p><p class="body">Where a param goes: <span class="mono">path</span>, <span class="mono">query</span> (default) or <span class="mono">header</span>. Pasted OpenAPI parameters already say it.</p></div>
+<div class="card in" style="--i:4"><p class="tag">x-flatten</p><p class="body">Flatten nested input first: <span class="mono">address.city</span> → <span class="mono">city</span>; later source wins</p></div>
+<div class="card in" style="--i:5"><p class="tag">declared only</p><p class="body">Undeclared fields are dropped (<span class="mono">additionalProperties: true</span> keeps them); readOnly fields stay out of requests.</p></div>
+</div>
+<p class="small" style="margin-top:32px">After shaping, scalars are coerced to the schema type (<span class="mono">"1534.50"</span> → <span class="mono">1534.5</span>), <span class="mono">default</span> / <span class="mono">const</span> fill gaps, and the result is validated against the same schema.</p>
+<aside>These rules cover nearly every mapping. OpenAPI allows x- keys, so our x-source, x-expression and x-flatten simply sit inside the pasted schema. Standard keywords such as required, enum, format, nullable and minimum still validate as usual.</aside>
+</section>
+
+<section id="openapi" class="dark">
+<p class="eyebrow">SCHEMAS FROM OPENAPI / SWAGGER</p>
+<h2>Copy the schema from the service, paste it into the task</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<div class="col in" style="--i:0;flex:1.1">
+<table style="font-size:26px;color:#F5F3EE">
+<tr><th style="width:34%">Field</th><th style="width:66%">Paste</th></tr>
+<tr><td class="tmono">paramsSchema</td><td>the operation’s <span class="mono">parameters</span> list</td></tr>
+<tr><td class="tmono">bodySchema</td><td>a schema, the <span class="mono">requestBody</span>, or the operation</td></tr>
+<tr><td class="tmono">responseSchema</td><td>a schema, a response, or <span class="mono">responses</span> (first 2xx)</td></tr>
+</table>
+<p class="small" style="margin-top:32px">JSON or YAML · OpenAPI 3.1, 3.0 or Swagger 2.0 · no comment lines.</p>
+</div>
+<div class="col in" style="--i:1;flex:0.9">
+<p class="codelabel" style="color:#F2A86B">THE WHOLE DOCUMENT + ONE LINE</p>
+<p class="code"><span class="k">$ref: '#/components/schemas/CustomerSnapshot'</span><br>openapi: 3.0.3<br>info: …<br>paths: …<br>components: …<br><span class="c">… the rest, unchanged</span></p>
+</div>
+</div>
+<div class="grid3" style="margin-top:48px">
+<div class="in" style="--i:2"><h3>$ref stays inside</h3><p class="small">Paste the components or the whole document; URLs are never fetched.</p></div>
+<div class="in" style="--i:3"><h3>Validated as OpenAPI</h3><p class="small">networknt’s OpenAPI dialects: nullable, formats, $ref as written.</p></div>
+<div class="in" style="--i:4"><h3>One schema, both ways</h3><p class="small">readOnly is left out of requests, writeOnly out of responses.</p></div>
+</div>
+<aside>The modeler copies what the other service already publishes. A plain schema works as is; when it uses $ref, paste the referenced components or the whole document and add one $ref line naming what to use. Whole documents are read with swagger-parser, which also converts Swagger 2.0. Nothing is translated: the validator reads the pasted text in its own dialect.</aside>
+</section>
+
+<section id="pasteexample">
+<p class="eyebrow">EXAMPLE · THE POST’S BODY SCHEMA</p>
+<h2>Pasted unchanged, plus a few lines</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<p class="code in" style="--i:0;flex:1.25"><span class="k">$ref: '#/components/schemas/CustomerSnapshot'</span><br>components:<br>&#160;schemas:<br>&#160;&#160;CustomerSnapshot:<br>&#160;&#160;&#160;type: object<br>&#160;&#160;&#160;properties:<br>&#160;&#160;&#160;&#160;id: {type: string, readOnly: true}<br>&#160;&#160;&#160;&#160;customerId:<br>&#160;&#160;&#160;&#160;&#160;type: integer<br>&#160;&#160;&#160;&#160;&#160;<span class="k">x-source: /customer/id</span><br>&#160;&#160;&#160;&#160;name: …<br>&#160;&#160;&#160;&#160;&#160;first: {type: string, <span class="k">x-source: /customer/firstName</span>}<br>&#160;&#160;&#160;&#160;snapshotBy:<br>&#160;&#160;&#160;&#160;&#160;<span class="k">x-expression: execution.getVariable('initiator')</span></p>
+<div class="col" style="flex:0.75">
+<div class="card in" style="--i:1"><p class="tag">$ref line</p><p class="body">Names the schema to send among the pasted components.</p></div>
+<div class="card in" style="--i:2;margin-top:20px"><p class="tag">x-source · x-expression</p><p class="body">Only where our data is named differently from the service’s.</p></div>
+<div class="card in" style="--i:3;margin-top:20px"><p class="tag">readOnly id</p><p class="body">Not sent in the POST; required in the response, which pastes the same schema unchanged.</p></div>
+</div>
+</div>
+<aside>Shortened from customer-snapshot.bpmn. The service's document is mock/openapi/customer-api.yaml, served by the mock as GET /openapi.yaml. Orange marks the only lines added to the copy. The response schema field holds the same paste without the additions, so a response without an id like s-1 ends in RESPONSE_INVALID.</aside>
+</section>
+
+<section id="petstore" class="alt">
+<p class="eyebrow">VERIFIED ON A REAL API · SWAGGER PETSTORE</p>
+<h2>Two inputs, one nested Pet</h2>
+<div class="row" style="gap:24px;align-items:flex-start">
+<div class="col in" style="--i:0"><p class="codelabel">input 1 · inventory</p><p class="code">{"id": "10",<br>&#160;"name": "doggie",<br>&#160;"category": {"id": 1,<br>&#160;&#160;<span class="c">"legacyCode": "D1"</span>},<br>&#160;"photoUrls": ["1.png"],<br>&#160;<span class="c">"internalId": "x-99"</span>}</p></div>
+<div class="col in" style="--i:1"><p class="codelabel">input 2 · catalogue</p><p class="code">{"category":<br>&#160;&#160;{"name": "Dogs"},<br>&#160;"tags": [{"id": 7,<br>&#160;&#160;"name": "friendly",<br>&#160;&#160;<span class="c">"color": "blue"</span>}],<br>&#160;"status": "available",<br>&#160;<span class="c">"_links": {…}</span>}</p></div>
+<div class="col in" style="--i:2"><p class="codelabel">→ body, valid Pet</p><p class="code">{<span class="k">"id": 10</span>,<br>&#160;"name": "doggie",<br>&#160;"category": {"id": 1,<br>&#160;&#160;<span class="k">"name": "Dogs"</span>},<br>&#160;"photoUrls": ["1.png"],<br>&#160;"tags": [{"id": 7,<br>&#160;&#160;"name": "friendly"}],<br>&#160;"status": "available"}</p></div>
+</div>
+<p class="small" style="margin-top:32px">Unmodified <span class="mono">petstore3.swagger.io</span> (OpenAPI 3.0.4) and <span class="mono">petstore.swagger.io/v2</span> (Swagger 2.0), referenced by component and by <span class="mono">POST /pet</span>: 12 cases, plus a BPMN task with the whole 17 KB document. Broken values are reported by path, e.g. <span class="mono">/tags/0/id</span>.</p>
+<aside>Pet has a nested object, category, and an array of nested objects, tags, both by $ref. The two inputs merge at every level: category gets its id from the first input and its name from the second. Grey fields are not in the schema and are not sent; "10" is coerced to the declared integer. The documents are in src/test/resources/openapi under their Apache 2.0 licence.</aside>
+</section>
+
+<section id="getexample">
+<p class="eyebrow">EXAMPLE 2 · GET WITH PARAMS</p>
+<h2>A params schema becomes the URL and headers</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<div class="col in" style="--i:0;flex:1.15">
+<p class="codelabel">paramsSchema (shortened)</p>
+<p class="code">{"type": "object", "properties": {<br>&#160;"userId": {"type": "integer",<br>&#160;&#160;<span class="k">"x-in": "path"</span>,<br>&#160;&#160;<span class="k">"x-expression": "userId"</span>},<br>&#160;"fields": {"type": "array",<br>&#160;&#160;<span class="k">"x-in": "query"</span>,<br>&#160;&#160;"default": ["contact","preferences"]},<br>&#160;"filter": {"type": "object",<br>&#160;&#160;<span class="k">"x-in": "query"</span>, "properties": {<br>&#160;&#160;&#160;"theme": {<span class="k">"x-source":</span><br>&#160;&#160;&#160;&#160;<span class="k">"/user/preferences/theme"</span>}}},<br>&#160;"X-Tenant": {"type": "string",<br>&#160;&#160;<span class="k">"x-in": "header"</span>, "default": "acme"}}}</p>
+</div>
+<div class="col in" style="--i:1;flex:0.85">
+<p class="codelabel">url</p>
+<p class="code">${apiBaseUrl}/users/{userId}</p>
+<p class="codelabel" style="margin-top:32px">→ request sent</p>
+<p class="code">GET /users/<span class="k">1042</span><br>&#160;?fields=contact<br>&#160;&amp;fields=preferences<br>&#160;&amp;filter.theme=dark<br><span class="k">X-Tenant: acme</span><br>Authorization: Bearer eyJ…</p>
+<p class="small" style="margin-top:24px">Arrays repeat the param, objects become <span class="mono">name.child</span>; values are strictly URL-encoded (<span class="mono">+</span> → <span class="mono">%2B</span>).</p>
+</div>
+</div>
+<aside>The path variable comes from an expression, the query array from a default, the filter from a JSON pointer into the merged sources and the header from a default. The same schema also validates: a missing userId would stop the call with REQUEST_INVALID.</aside>
+</section>
+
+<section id="xml" class="dark">
+<p class="eyebrow">IN THE MODEL</p>
+<h2>A REST task in the BPMN file</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<p class="code in" style="--i:0;flex:1.4">&lt;bpmn:serviceTask id="getProfile" name="GET profile"<br>&#160;&#160;<span class="k">camunda:delegateExpression="${restGet}"</span>&gt;<br>&#160;&lt;camunda:inputOutput&gt;<br>&#160;&#160;&lt;camunda:inputParameter name=<span class="k">"url"</span>&gt;<br>&#160;&#160;&#160;${apiBaseUrl}/customers/{customerId}/profile&lt;/…&gt;<br>&#160;&#160;&lt;camunda:inputParameter name=<span class="k">"paramsSchema"</span>&gt;<br>&#160;&#160;&#160;- name: customerId<br>&#160;&#160;&#160;&#160;&#160;in: path …&lt;/…&gt;<br>&#160;&#160;&lt;camunda:inputParameter name=<span class="k">"resultVariable"</span>&gt;<br>&#160;&#160;&#160;profile&lt;/…&gt;<br>&#160;&#160;&lt;camunda:inputParameter name=<span class="k">"mockEnabled"</span>&gt;<br>&#160;&#160;&#160;${execution.getVariable('useMockData') == true}&lt;/…&gt;<br>&#160;&#160;<span class="c">… every other input, empty or mock data</span></p>
+<div class="col in" style="--i:1;flex:0.6">
+<h3>Camunda 7 format</h3>
+<p class="small">The <span class="mono">camunda:</span> namespace plus <span class="mono">executionPlatform="Camunda Platform"</span>: Camunda Modeler and the VS Code BPMN extension show every input.</p>
+<h3 style="margin-top:40px">Runs on Operaton</h3>
+<p class="small">The Operaton engine reads <span class="mono">camunda:</span> as is. Tested with Camunda-Modeler-saved files.</p>
+</div>
+</div>
+<aside>In the properties panel this is Implementation: Delegate expression, and Inputs: one row per parameter. The element templates in .camunda/element-templates turn the same thing into a labelled form. The parameters are pasted from the service's OpenAPI; customerId is filled from the process variable of the same name.</aside>
+</section>
+
+<section id="modeler" class="alt">
+<p class="eyebrow">IN THE MODELER</p>
+<h2>The same task, with and without the template</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<div class="col in" style="--i:0">
+<p class="codelabel">Without template: Camunda 7 panel, raw inputs</p>
+<img src="images/modeler-1.png" alt="Properties panel of the POST merged snapshot task: Delegate expression ${restPost}; Inputs list with url, sources, paramsSchema, bodySchema, headers, responseSchema, resultVariable, statusVariable, technicalErrors, mockEnabled, mockStatus, mockResponse" style="width:780px;height:516px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<p class="small" style="margin-top:16px">Every input is listed by name, so nothing has to be remembered.</p>
+</div>
+<div class="col in" style="--i:1">
+<p class="codelabel">With the “REST POST” template</p>
+<img src="images/modeler-2.png" alt="Element template form REST POST, Response group open: the Response schema field holds the CustomerSnapshot schema pasted in YAML, starting with $ref: '#/components/schemas/CustomerSnapshot'" style="width:680px;height:562px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+</div>
+</div>
+<aside>Both screenshots are rendered with bpmn-js and the Camunda 7 properties panel, the same components Camunda Modeler uses, from the real customer-snapshot model. Left: the plain panel any modeler shows. Right: the element template from .camunda/element-templates, found when the project folder is open, with the pasted OpenAPI response schema.</aside>
+</section>
+
+<section id="jwt">
+<p class="eyebrow">AUTHENTICATION</p>
+<h2>The token comes from the execution, not the task</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<div class="col in" style="--i:0">
+<p class="codelabel">1 · start the process with the token</p>
+<p class="code">POST /engine-rest/process-definition/<br>&#160;&#160;key/customer-snapshot/start<br>{"variables": {<br>&#160;<span class="k">"accessToken": {"value": "eyJhbGci…"}</span>,<br>&#160;"customerId": {"value": 501, …}}}</p>
+<p class="codelabel" style="margin-top:32px">2 · nothing on the REST tasks</p>
+<p class="code">rest-connector:<br>&#160;&#160;jwt-variable: <span class="k">accessToken</span></p>
+</div>
+<div class="col in" style="--i:1">
+<p class="codelabel">3 · every call carries</p>
+<p class="code">Authorization: Bearer eyJhbGci…</p>
+<div class="card" style="margin-top:32px">
+<p class="body">• No <span class="mono">accessToken</span> variable → no header; a protected API answers 401 → <span class="mono">HTTP_401</span>.<br>• A <span class="mono">Bearer </span> prefix is not doubled.<br>• It replaces any other Authorization header.<br>• Empty or malformed → incident.<br>• Other token sources (OAuth2): replace the <span class="mono">TokenProvider</span> bean.</p>
+</div>
+</div>
+</div>
+<aside>There is no jwt input any more: the connector reads the accessToken variable when a task runs, so models stay free of auth details. The variable name is an app setting. The token is never logged and, with history level activity, never stored in history.</aside>
+</section>
+
+<section id="fanout" class="alt">
+<p class="eyebrow">EXAMPLE 3 · CUSTOMER SNAPSHOT</p>
+<h2>5 parallel GETs, merged into one POST</h2>
+<div class="row" style="align-items:center;gap:40px">
+<div class="in" style="--i:0;display:flex;flex-direction:column;gap:12px;width:400px">
+<p class="pill">GET profile</p>
+<p class="pill">GET contact</p>
+<p class="pill">GET address</p>
+<p class="pill">GET account</p>
+<p class="pill">GET loyalty</p>
+</div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="bigbox merge in" style="--i:1;width:480px">
+<h3>Merge + shape</h3>
+<p class="small"><span class="mono">sources = profile, contact, address, account, loyalty</span><br>Fixed order, so the result does not depend on which GET finished first. The body schema renames, re-nests and drops noise.</p>
+</div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="bigbox post in" style="--i:2;width:440px">
+<h3 style="font-size:30px">POST /customer-snapshots</h3>
+<p class="small"><span class="mono">resultVariable = snapshot</span><br><span class="mono">statusVariable = postStatus</span><br>→ 201, <span class="mono">{"id": "s-1", …}</span></p>
+</div>
+</div>
+<p class="small" style="margin-top:48px">Each GET stores its own result variable (<span class="mono">resultVariable = profile</span>, …). A parallel gateway forks and joins; no script tasks anywhere. The next slides follow one real run, call by call.</p>
+<aside>This is customer-snapshot.bpmn. Five different response objects with noise such as _links, internal notes and geo data become one clean, validated snapshot body. Later sources win, so loyalty’s account tier (platinum) overrides the account resource’s tier (gold).</aside>
+</section>
+
+<section id="getinputs">
+<p class="eyebrow">THE RUN · 1 · INPUTS OF THE 5 GET TASKS</p>
+<h2>Same inputs, different URL and result variable</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<img class="in" src="images/getinputs-1.png" alt="GET profile selected; properties panel shows Delegate expression ${restGet} and the Inputs list with paramsSchema opened: the OpenAPI parameters pasted as YAML, name customerId, in path, required, schema integer minimum 1" style="--i:0;width:700px;height:555px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<div class="col in" style="--i:1">
+<table style="font-size:24px">
+<tr><th style="width:30%">Task</th><th style="width:40%">url ends with</th><th style="width:30%">resultVariable</th></tr>
+<tr><td>GET profile</td><td class="tmono">/profile</td><td class="tmono">profile</td></tr>
+<tr><td>GET contact</td><td class="tmono">/contact</td><td class="tmono">contact</td></tr>
+<tr><td>GET address</td><td class="tmono">/address</td><td class="tmono">address</td></tr>
+<tr><td>GET account</td><td class="tmono">/account</td><td class="tmono">account</td></tr>
+<tr><td>GET loyalty</td><td class="tmono">/loyalty</td><td class="tmono">loyalty</td></tr>
+</table>
+<p class="code" style="margin-top:28px">url = ${apiBaseUrl}/customers/{customerId}/…<br>paramsSchema = pasted OpenAPI parameters:<br>&#160;&#160;<span class="k">- name: customerId, in: path</span><br>customerId ← the process variable<br>technicalErrors = bpmnError</p>
+</div>
+</div>
+<p class="small" style="margin-top:28px">Start variables: <span class="mono">apiBaseUrl = http://localhost:8081/api</span>, <span class="mono">customerId = 501</span>, <span class="mono">accessToken = eyJhbGci…</span>, <span class="mono">initiator = demo</span>. <span class="mono">sources</span>, <span class="mono">headers</span> and <span class="mono">responseSchema</span> stay empty.</p>
+<aside>The screenshot is the real GET profile task in the Camunda 7 properties panel. All five GETs paste the same parameters list from the service's OpenAPI unchanged: one path parameter customerId, which the sources do not have, so it is taken from the customerId process variable and validated as an integer of at least 1.</aside>
+</section>
+
+<section id="getcalls" class="alt">
+<p class="eyebrow">THE RUN · 2 · REQUEST AND RESPONSE OF EACH GET</p>
+<h2>What went over the wire</h2>
+<p class="small" style="margin:-24px 0 16px">Every request also carried <span class="mono">Accept: application/json</span> and <span class="mono">Authorization: Bearer eyJhbGci…</span>. Grey = noise the POST schema drops later.</p>
+<div class="in" style="--i:0;display:flex;flex-direction:column">
+<div class="hrow" style="padding:14px 0"><p class="mono" style="font-size:24px;width:470px;margin:0"><b>GET</b> /api/customers/501/profile<br>→ <b>200</b> · var <span style="color:#A8501C">profile</span></p><p class="mono" style="font-size:24px;line-height:1.4;margin:0;flex:1">{"customer": {"id": 501, "firstName": "Noa", "lastName": "Levi", "birthDate": "1990-04-12", <span style="color:#8A8F9C">"internalNotes": "vip"</span>}, <span style="color:#8A8F9C">"_links": {…}</span>}</p></div>
+<div class="hrow" style="padding:14px 0"><p class="mono" style="font-size:24px;width:470px;margin:0"><b>GET</b> /api/customers/501/contact<br>→ <b>200</b> · var <span style="color:#A8501C">contact</span></p><p class="mono" style="font-size:24px;line-height:1.4;margin:0;flex:1">{"customer": {"email": "noa.levi@example.com", "phone": "+972-50-555-0101"}, <span style="color:#8A8F9C">"_links": {…}</span>}</p></div>
+<div class="hrow" style="padding:14px 0"><p class="mono" style="font-size:24px;width:470px;margin:0"><b>GET</b> /api/customers/501/address<br>→ <b>200</b> · var <span style="color:#A8501C">address</span></p><p class="mono" style="font-size:24px;line-height:1.4;margin:0;flex:1">{"address": {"street": "Herzl 10", "city": "Tel Aviv", "zip": "6100000", "country": "IL", <span style="color:#8A8F9C">"geo": {"lat": 32.06, "lng": 34.77}</span>}, <span style="color:#8A8F9C">"_links": {…}</span>}</p></div>
+<div class="hrow" style="padding:14px 0"><p class="mono" style="font-size:24px;width:470px;margin:0"><b>GET</b> /api/customers/501/account<br>→ <b>200</b> · var <span style="color:#A8501C">account</span></p><p class="mono" style="font-size:24px;line-height:1.4;margin:0;flex:1">{"account": {"status": "active", "tier": "gold", <span style="color:#8A8F9C">"openedAt": "2019-02-01"</span>}, <span style="color:#8A8F9C">"_links": {…}</span>}</p></div>
+<div class="hrow" style="padding:14px 0"><p class="mono" style="font-size:24px;width:470px;margin:0"><b>GET</b> /api/customers/501/loyalty<br>→ <b>200</b> · var <span style="color:#A8501C">loyalty</span></p><p class="mono" style="font-size:24px;line-height:1.4;margin:0;flex:1">{"loyalty": {"points": 1280, "level": "gold", <span style="color:#8A8F9C">"expiresAt": "2027-01-01"</span>}, "account": {"tier": <b>"platinum"</b>}, <span style="color:#8A8F9C">"_links": {…}</span>}</p></div>
+</div>
+<aside>Recorded by the nginx mock during a real run of customer-snapshot on the Operaton engine. Each response is stored unchanged as a JSON variable named after the resource. Note loyalty’s account.tier = platinum: it comes later in sources, so it overrides gold from account.</aside>
+</section>
+
+<section id="postio">
+<p class="eyebrow">THE RUN · 3 · THE POST TASK</p>
+<h2>Input: 5 variables. Output: 2 variables.</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<div class="col in" style="--i:0;flex:1.15">
+<p class="codelabel">INPUT · sources = profile, contact, address, account, loyalty</p>
+<p class="code" style="transform:translate(21px, 15px)">POST /api/customer-snapshots<br>Authorization: Bearer eyJhbGci…<br><br>{"customerId": 501,<br>&#160;"name": {"first": "Noa", "last": "Levi"},<br>&#160;"birthDate": "1990-04-12",<br>&#160;"contact": {"email": "noa.levi@example.com",<br>&#160;&#160;&#160;"phone": "+972-50-555-0101"},<br>&#160;"address": {"street": "Herzl 10", "city": "Tel Aviv",<br>&#160;&#160;&#160;"zip": "6100000", "country": "IL"},<br>&#160;"account": {"status": "active", <span class="k">"tier": "platinum"</span>},<br>&#160;"loyalty": {"points": 1280, "level": "gold"},<br>&#160;<span class="k">"snapshotBy": "demo"</span>}</p>
+</div>
+<div class="col in" style="--i:1;flex:0.85">
+<p class="codelabel">OUTPUT · response → variables</p>
+<p class="code">HTTP <span class="k">201</span> Created<br>{<span class="k">"id": "s-1"</span>, "customerId": 501, …}</p>
+<div class="card" style="margin-top:24px"><p class="tag">snapshot</p><p class="body">The response body, checked by <span class="mono">responseSchema</span>: the pasted CustomerSnapshot, where the readOnly <span class="mono">id</span> is required and must match <span class="mono">^s-[0-9]+$</span>.</p></div>
+<div class="card" style="margin-top:20px"><p class="tag">postStatus</p><p class="body">Integer <span class="mono">201</span>.</p></div>
+<p class="small" style="margin-top:20px">Orange: <span class="mono">tier</span> from loyalty (later source wins), <span class="mono">snapshotBy</span> from <span class="mono">x-expression</span> on the <span class="mono">initiator</span> variable.</p>
+</div>
+</div>
+<aside>The request body is exactly what the connector built from the five GET variables with the pasted body schema: firstName and lastName re-nested under name, noise dropped, snapshotBy added from the initiator start variable. The mock echoes the body with an id, so snapshot holds id s-1 plus the same fields.</aside>
+</section>
+
+<section id="runtime" class="dark">
+<p class="eyebrow">THE RUN · 4 · AT RUNTIME IN COCKPIT</p>
+<h2>The instance just before the POST</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<img class="in" src="images/runtime-1.png" alt="Operaton Cockpit, process instance runtime view of Customer snapshot: the 5 GET tasks are done, a token waits at POST merged snapshot (job marker 1); the Variables tab lists accessToken, account, address, apiBaseUrl and more" style="--i:0;width:1088px;height:680px;object-fit:contain;border-radius:12px;background:#FFFFFF">
+<div class="col in" style="--i:1">
+<h3>All 5 GETs done</h3>
+<p class="small">The token waits at <b>POST merged snapshot</b>. The 5 results are process variables now.</p>
+<h3 style="margin-top:32px">How this was captured</h3>
+<p class="small">The normal model runs straight through. For this screenshot, a copy (version 2) with <i>async before</i> on the POST was deployed and the job executor was off, so the instance stops there.</p>
+</div>
+</div>
+<aside>Operaton Cockpit is now part of the app (operaton-bpm-spring-boot-starter-webapp, login demo/demo at /operaton/app). The runtime view shows the diagram with the waiting token and the Variables tab underneath.</aside>
+</section>
+
+<section id="runtimevars" class="alt">
+<p class="eyebrow">THE RUN · 5 · RUNTIME VARIABLES</p>
+<h2>How the variables look at runtime</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<div class="col in" style="--i:0">
+<img src="images/runtimevars-1.png" alt="Cockpit Variables tab with 9 variables: accessToken String, account Json, address Json, apiBaseUrl String, contact Json with value {&quot;customer&quot;:{&quot;email&quot;:&quot;noa.levi@ex…, customerId Integer 501, initiator String demo, loyalty Json, profile Json" style="width:1100px;height:522px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<p class="small" style="margin-top:20px">4 start variables (String, Integer) + 5 GET results of type <span class="mono">Json</span>: the value is visible right in the table.</p>
+</div>
+<div class="col in" style="--i:1">
+<img src="images/runtimevars-2.png" alt="Inspect contact variable: value {&quot;customer&quot;:{&quot;email&quot;:&quot;noa.levi@example.com&quot;,&quot;phone&quot;:&quot;+972-50-555-0101&quot;},&quot;_links&quot;:{&quot;self&quot;:&quot;/api/customers/501/contact&quot;}}" style="width:420px;height:318px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<p class="small" style="margin-top:20px">Opening <span class="mono">contact</span>: the full GET response, exactly as received (<span class="mono">_links</span> included).</p>
+</div>
+</div>
+<aside>The GET results are stored exactly as received, noise included; shaping happens only when a schema builds a request. After the POST, snapshot and postStatus are added, and when the instance completes all of these runtime variables are deleted and none is in history (history level activity).</aside>
+</section>
+
+<section id="errormodel">
+<p class="eyebrow">ERROR HANDLING IN THE MODEL</p>
+<h2>One event subprocess catches every REST error</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<img class="in" src="images/errormodel-1.png" alt="user-sync diagram: GET user, PUT merged user, UPDATE preferences, DELETE sessions; an HTTP_404 boundary event on GET user leads to User not found; below, the event subprocess Handle REST errors with an error start event, a gateway Which error? and five end events: Not authorized, Not found, Invalid data, Service unavailable, Request rejected" style="--i:0;width:960px;height:640px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<div class="col in" style="--i:1">
+<div class="card"><p class="tag">Catch-all start</p><p class="body">An error start event with no error code catches any BPMN error from any task, including all 5 parallel GETs.</p></div>
+<div class="card" style="margin-top:20px"><p class="tag">Route by code</p><p class="body">The code lands in <span class="mono">errorCode</span>, the response body in <span class="mono">errorMessage</span>; a gateway picks the end event.</p></div>
+<div class="card" style="margin-top:20px"><p class="tag">Specific first</p><p class="body">A boundary event on a task (HTTP_404 on GET user) still wins.</p></div>
+</div>
+</div>
+<aside>The subprocess is interrupting: the first error cancels the rest of the instance, so in the fan-out no POST is sent after a failed GET. All three models have it. The end event shows in history which kind of error ended the instance.</aside>
+</section>
+
+<section id="errorconfig" class="alt">
+<p class="eyebrow">ERROR HANDLING · CONFIGURATION</p>
+<h2>“Any REST error”: no code, two variables</h2>
+<img class="in" src="images/errorconfig-1.png" alt="Handle REST errors subprocess selected at its error start event; properties panel shows Error: global error reference none, Code variable errorCode, Message variable errorMessage" style="--i:0;width:1250px;height:651px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF;align-self:center">
+<aside>Global error reference empty means catch all. Code variable errorCode and message variable errorMessage are what the gateway conditions use, for example errorCode == 'HTTP_404', or errorCode.startsWith('HTTP_5'). For 5xx and connection problems to arrive here, the REST tasks set technicalErrors = bpmnError.</aside>
+</section>
+
+<section id="errortests">
+<p class="eyebrow">ERROR HANDLING · TESTED</p>
+<h2>Every error path, run against the nginx mock</h2>
+<table style="font-size:24px">
+<tr><th style="width:36%">What goes wrong</th><th style="width:30%">errorCode</th><th style="width:22%">Ends at</th><th style="width:12%">POST sent</th></tr>
+<tr><td>Bad token / 403 on a GET</td><td class="tmono">HTTP_401 / HTTP_403</td><td>Not authorized</td><td>no</td></tr>
+<tr><td>Unknown customer</td><td class="tmono">HTTP_404</td><td>Not found</td><td>no</td></tr>
+<tr><td>Params or body break their schema</td><td class="tmono">REQUEST_INVALID</td><td>Invalid data</td><td>no</td></tr>
+<tr><td>POST answer breaks the response schema</td><td class="tmono">RESPONSE_INVALID</td><td>Invalid data</td><td>yes</td></tr>
+<tr><td>503 on a GET / 500 on the POST</td><td class="tmono">HTTP_503 / HTTP_500</td><td>Service unavailable</td><td>no / yes</td></tr>
+<tr><td>Connection refused</td><td class="tmono">CONNECTION_FAILED</td><td>Service unavailable</td><td>no</td></tr>
+<tr><td>409 on the POST / 429 on a GET</td><td class="tmono">HTTP_409 / HTTP_429</td><td>Request rejected</td><td>yes / no</td></tr>
+</table>
+<p class="small" style="margin-top:32px">Faults are injected with <span class="mono">PUT /__mock/faults</span>. Each test also checks <span class="mono">errorMessage</span> and that no variable is left in the database. 39 tests pass.</p>
+<aside>CustomerSnapshotErrorsTest covers the 11 cases in this table; user-sync (HTTP 500) and user-onboarding (HTTP 422 on the PATCH) have one error test each. The same suite also passes with the models re-saved the way Camunda Modeler saves them.</aside>
+</section>
+
+<section id="mock" class="dark">
+<p class="eyebrow">TEST MODE · MOCK DATA</p>
+<h2>Run the process without calling the service</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<div class="col in" style="--i:0;flex:1.05">
+<table style="font-size:26px;color:#F5F3EE">
+<tr><th style="width:36%">Input</th><th style="width:64%">Value</th></tr>
+<tr><td class="tmono">mockEnabled</td><td><span class="mono">true</span>, <span class="mono">false</span> or an expression</td></tr>
+<tr><td class="tmono">mockStatus</td><td>the status to answer with, default <span class="mono">200</span></td></tr>
+<tr><td class="tmono">mockResponse</td><td>the response body, JSON or text</td></tr>
+</table>
+</div>
+<div class="col in" style="--i:1;flex:0.95">
+<div class="card" style="background:#1C2640;border-color:#1C2640"><p class="tag" style="color:#F2A86B">1 · built and validated</p><p class="body" style="color:#BFC8DA">Sources, params and body schemas run as for a real call.</p></div>
+<div class="card" style="background:#1C2640;border-color:#1C2640;margin-top:20px"><p class="tag" style="color:#F2A86B">2 · not sent</p><p class="body mono" style="color:#BFC8DA">MOCK GET …/profile - not sent, answering 200</p></div>
+<div class="card" style="background:#1C2640;border-color:#1C2640;margin-top:20px"><p class="tag" style="color:#F2A86B">3 · handled like a real answer</p><p class="body" style="color:#BFC8DA">Status → BPMN errors, response schema, result variables.</p></div>
+</div>
+</div>
+<p class="small" style="margin-top:40px"><span class="mono">mockStatus = 404</span> tests the “not found” path; a mock body that breaks the response schema ends in <span class="mono">RESPONSE_INVALID</span>, like a real one would.</p>
+<aside>Test mode is set per task in the model, so a test environment can run whole processes with no service available. Because only the call is replaced, everything else, including schema mistakes in the model, is still checked.</aside>
+</section>
+
+<section id="mockexample">
+<p class="eyebrow">TEST MODE · IN THE SAMPLE MODELS</p>
+<h2>One start variable switches the whole process</h2>
+<div class="row" style="gap:48px;align-items:flex-start">
+<img class="in" src="images/mockexample-1.png" alt="Element template REST POST, Test mode (mock data) group: Mock enabled ${execution.getVariable('useMockData') == true}, Mock status 201, Mock response holding the snapshot JSON with id s-9001" style="--i:0;width:640px;height:608px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<div class="col in" style="--i:1">
+<p class="codelabel">start request</p>
+<p class="code">{"variables": {<br>&#160;"customerId": {"value": 501, …},<br>&#160;"accessToken": {"value": "eyJ…"},<br>&#160;<span class="k">"useMockData": {"value": true,</span><br>&#160;&#160;<span class="k">"type": "Boolean"}</span>}}</p>
+<p class="codelabel" style="margin-top:32px">result</p>
+<p class="code">6 tasks · <span class="k">0 requests sent</span><br>snapshot.id = "s-9001" · postStatus = 201</p>
+<p class="small" style="margin-top:24px">All 16 REST tasks of the 3 models carry mock data. Without the variable, the same model calls the service.</p>
+</div>
+</div>
+<aside>The example is examples/start-customer-snapshot-mock.json. MockModeProcessTest runs every model with useMockData = true and checks that the nginx mock received nothing, and that the same model calls the service when the variable is missing.</aside>
+</section>
+
+<section id="privacy" class="dark">
+<p class="eyebrow">VARIABLES &amp; HISTORY</p>
+<h2>Nothing stays after the process completes</h2>
+<table style="font-size:26px;color:#F5F3EE">
+<tr><th style="width:60%">Data</th><th style="width:40%">Kept?</th></tr>
+<tr><td>Process and activity instances, incidents (what ran, where it ended)</td><td>Yes, in history</td></tr>
+<tr><td>Variables: accessToken, sources, results, every other variable</td><td>Never written to history</td></tr>
+<tr><td>Runtime variables</td><td>Only while the instance runs; deleted on completion</td></tr>
+</table>
+<div class="row" style="margin-top:48px;gap:40px">
+<div class="col"><h3>How</h3><p class="small"><span class="mono">operaton.bpm.history-level: activity</span> in <span class="mono">application.yaml</span>. Engine-wide.</p></div>
+<div class="col"><h3>Need the results?</h3><p class="small">Ask for them at start: <span class="mono">"withVariablesInReturn": true</span> over REST, <span class="mono">executeWithVariablesInReturn()</span> in Java.</p></div>
+<div class="col"><h3>Checked by tests</h3><p class="small">Every process test asserts no runtime variables, no historic variables and no historic details remain.</p></div>
+</div>
+<aside>While an instance waits (async continuation, timer, user task) its variables, including the token, are in the runtime table until it completes. A process that runs straight through finishes before anything is left.</aside>
+</section>
+
+<section id="architecture" class="alt">
+<p class="eyebrow">INSIDE THE CONNECTOR</p>
+<h2>Layers, wired by Spring</h2>
+<div class="steps">
+<div class="step in" style="--i:0"><p class="num">engine</p><p class="stitle">Operaton adapter</p><p class="sbody mono">delegate · input · output · auth</p><p class="sbody" style="margin-top:12px">The only layer that knows the engine</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step http in" style="--i:1"><p class="num">core</p><p class="stitle">The use case</p><p class="sbody mono">api · error · request · response · service</p><p class="sbody" style="margin-top:12px">Build, send, map the answer</p></div>
+<x-icon name="Play" class="arrow"></x-icon>
+<div class="step in" style="--i:2"><p class="num">schema</p><p class="stitle">Pasted schemas</p><p class="sbody mono">SchemaCompiler · JsonComposer</p><p class="sbody" style="margin-top:12px">Find, validate, shape</p></div>
+<div class="step in" style="--i:3"><p class="num">http</p><p class="stitle">The wire</p><p class="sbody mono">transport · restclient · params</p><p class="sbody" style="margin-top:12px">Spring RestClient, JDK HttpClient</p></div>
+</div>
+<p class="lead" style="margin-top:56px">The boundaries are interfaces – <span class="mono">RestConnector</span>, <span class="mono">SchemaCompiler</span>, <span class="mono">HttpTransport</span>, <span class="mono">TokenProvider</span> – each a Spring bean you can replace with <span class="mono">@Primary</span>. <span class="mono">LayerDependencyTest</span> fails the build on a wrong import.</p>
+<aside>Dependencies point one way: engine to core, core to schema and http. Inside core, engine and http the sub-packages have rules too. One RestConnectorDelegate class serves all five beans, restGet to restDelete. 83 tests cover the layers on their own with a fake transport, and the models on the engine against the nginx mock.</aside>
+</section>
+
+<section id="howto">
+<p class="eyebrow">HOW TO USE IT</p>
+<h2>Adding a REST call to a process</h2>
+<div class="howto">
+<div class="hrow in" style="--i:0"><p class="hnum">1</p><p class="htext"><b>Add a Service Task</b> in Camunda Modeler or the VS Code BPMN extension. <span class="m">Open the project folder so the templates load, then pick a template such as “REST GET”; or set Delegate expression <span class="mono">${restGet}</span> by hand.</span></p></div>
+<div class="hrow in" style="--i:1"><p class="hnum">2</p><p class="htext"><b>Fill the inputs:</b> <span class="mono">url</span>, <span class="mono">sources</span>, <span class="mono">resultVariable</span>, and paste the params or body schema from the service’s OpenAPI. <span class="m">Leave the rest empty.</span></p></div>
+<div class="hrow in" style="--i:2"><p class="hnum">3</p><p class="htext"><b>Model the errors you care about:</b> an error boundary event with <span class="mono">HTTP_404</span>, <span class="mono">HTTP_401</span> or <span class="mono">REQUEST_INVALID</span>. <span class="m">Set async-before for automatic retries on 5xx.</span></p></div>
+<div class="hrow in" style="--i:3"><p class="hnum">4</p><p class="htext"><b>Commit.</b> <span class="m">The pre-commit hook runs</span> <span class="mono">scripts/make-portable.py</span><span class="m">: it unlinks the template, adds missing inputs and keeps the</span> <span class="mono">camunda:</span> <span class="m">format.</span></p></div>
+<div class="hrow in" style="--i:4"><p class="hnum">5</p><p class="htext"><b>Start the process</b> with its variables, e.g. <span class="mono">apiBaseUrl</span>, <span class="mono">customerId</span>, <span class="mono">accessToken</span>. <span class="m">Add</span> <span class="mono">useMockData = true</span> <span class="m">to run on mock data.</span></p></div>
+</div>
+<aside>Five steps from an empty task to a running call. Try it locally: docker compose up -d --wait starts the nginx mock, java -jar starts the app, and examples/start-customer-snapshot.json is a ready-made start request; start-customer-snapshot-mock.json runs it on mock data.</aside>
+</section>
+
+</body></html>

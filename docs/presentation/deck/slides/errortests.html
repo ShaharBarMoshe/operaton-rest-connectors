@@ -1,0 +1,16 @@
+<section id="errortests">
+<p class="eyebrow">ERROR HANDLING · TESTED</p>
+<h2>Every error path, run against the nginx mock</h2>
+<table style="font-size:24px">
+<tr><th style="width:36%">What goes wrong</th><th style="width:30%">errorCode</th><th style="width:22%">Ends at</th><th style="width:12%">POST sent</th></tr>
+<tr><td>Bad token / 403 on a GET</td><td class="tmono">HTTP_401 / HTTP_403</td><td>Not authorized</td><td>no</td></tr>
+<tr><td>Unknown customer</td><td class="tmono">HTTP_404</td><td>Not found</td><td>no</td></tr>
+<tr><td>Params or body break their schema</td><td class="tmono">REQUEST_INVALID</td><td>Invalid data</td><td>no</td></tr>
+<tr><td>POST answer breaks the response schema</td><td class="tmono">RESPONSE_INVALID</td><td>Invalid data</td><td>yes</td></tr>
+<tr><td>503 on a GET / 500 on the POST</td><td class="tmono">HTTP_503 / HTTP_500</td><td>Service unavailable</td><td>no / yes</td></tr>
+<tr><td>Connection refused</td><td class="tmono">CONNECTION_FAILED</td><td>Service unavailable</td><td>no</td></tr>
+<tr><td>409 on the POST / 429 on a GET</td><td class="tmono">HTTP_409 / HTTP_429</td><td>Request rejected</td><td>yes / no</td></tr>
+</table>
+<p class="small" style="margin-top:32px">Faults are injected with <span class="mono">PUT /__mock/faults</span>. Each test also checks <span class="mono">errorMessage</span> and that no variable is left in the database. 39 tests pass.</p>
+<aside>CustomerSnapshotErrorsTest covers the 11 cases in this table; user-sync (HTTP 500) and user-onboarding (HTTP 422 on the PATCH) have one error test each. The same suite also passes with the models re-saved the way Camunda Modeler saves them.</aside>
+</section>

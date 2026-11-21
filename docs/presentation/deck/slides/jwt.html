@@ -1,0 +1,20 @@
+<section id="jwt">
+<p class="eyebrow">AUTHENTICATION</p>
+<h2>The token comes from the execution, not the task</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<div class="col in" style="--i:0">
+<p class="codelabel">1 · start the process with the token</p>
+<p class="code">POST /engine-rest/process-definition/<br>&#160;&#160;key/customer-snapshot/start<br>{"variables": {<br>&#160;<span class="k">"accessToken": {"value": "eyJhbGci…"}</span>,<br>&#160;"customerId": {"value": 501, …}}}</p>
+<p class="codelabel" style="margin-top:32px">2 · nothing on the REST tasks</p>
+<p class="code">rest-connector:<br>&#160;&#160;jwt-variable: <span class="k">accessToken</span></p>
+</div>
+<div class="col in" style="--i:1">
+<p class="codelabel">3 · every call carries</p>
+<p class="code">Authorization: Bearer eyJhbGci…</p>
+<div class="card" style="margin-top:32px">
+<p class="body">• No <span class="mono">accessToken</span> variable → no header; a protected API answers 401 → <span class="mono">HTTP_401</span>.<br>• A <span class="mono">Bearer </span> prefix is not doubled.<br>• It replaces any other Authorization header.<br>• Empty or malformed → incident.<br>• Other token sources (OAuth2): replace the <span class="mono">TokenProvider</span> bean.</p>
+</div>
+</div>
+</div>
+<aside>There is no jwt input any more: the connector reads the accessToken variable when a task runs, so models stay free of auth details. The variable name is an app setting. The token is never logged and, with history level activity, never stored in history.</aside>
+</section>

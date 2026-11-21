@@ -1,0 +1,6 @@
+<section id="errorconfig" class="alt">
+<p class="eyebrow">ERROR HANDLING · CONFIGURATION</p>
+<h2>“Any REST error”: no code, two variables</h2>
+<img class="in" src="/_blob/d2158dbde09a976c24449f30149ce4d2" alt="Handle REST errors subprocess selected at its error start event; properties panel shows Error: global error reference none, Code variable errorCode, Message variable errorMessage" style="--i:0;width:1250px;height:651px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF;align-self:center">
+<aside>Global error reference empty means catch all. Code variable errorCode and message variable errorMessage are what the gateway conditions use, for example errorCode == 'HTTP_404', or errorCode.startsWith('HTTP_5'). For 5xx and connection problems to arrive here, the REST tasks set technicalErrors = bpmnError.</aside>
+</section>

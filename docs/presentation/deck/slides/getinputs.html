@@ -1,0 +1,20 @@
+<section id="getinputs">
+<p class="eyebrow">THE RUN · 1 · INPUTS OF THE 5 GET TASKS</p>
+<h2>Same inputs, different URL and result variable</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<img class="in" src="/_blob/ec1071a04e85e05a0e9eec6ea6f89c00" alt="GET profile selected; properties panel shows Delegate expression ${restGet} and the Inputs list with paramsSchema opened: the OpenAPI parameters pasted as YAML, name customerId, in path, required, schema integer minimum 1" style="--i:0;width:700px;height:555px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<div class="col in" style="--i:1">
+<table style="font-size:24px">
+<tr><th style="width:30%">Task</th><th style="width:40%">url ends with</th><th style="width:30%">resultVariable</th></tr>
+<tr><td>GET profile</td><td class="tmono">/profile</td><td class="tmono">profile</td></tr>
+<tr><td>GET contact</td><td class="tmono">/contact</td><td class="tmono">contact</td></tr>
+<tr><td>GET address</td><td class="tmono">/address</td><td class="tmono">address</td></tr>
+<tr><td>GET account</td><td class="tmono">/account</td><td class="tmono">account</td></tr>
+<tr><td>GET loyalty</td><td class="tmono">/loyalty</td><td class="tmono">loyalty</td></tr>
+</table>
+<p class="code" style="margin-top:28px">url = ${apiBaseUrl}/customers/{customerId}/…<br>paramsSchema = pasted OpenAPI parameters:<br>&#160;&#160;<span class="k">- name: customerId, in: path</span><br>customerId ← the process variable<br>technicalErrors = bpmnError</p>
+</div>
+</div>
+<p class="small" style="margin-top:28px">Start variables: <span class="mono">apiBaseUrl = http://localhost:8081/api</span>, <span class="mono">customerId = 501</span>, <span class="mono">accessToken = eyJhbGci…</span>, <span class="mono">initiator = demo</span>. <span class="mono">sources</span>, <span class="mono">headers</span> and <span class="mono">responseSchema</span> stay empty.</p>
+<aside>The screenshot is the real GET profile task in the Camunda 7 properties panel. All five GETs paste the same parameters list from the service's OpenAPI unchanged: one path parameter customerId, which the sources do not have, so it is taken from the customerId process variable and validated as an integer of at least 1.</aside>
+</section>

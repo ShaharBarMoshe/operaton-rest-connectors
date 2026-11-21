@@ -25,6 +25,8 @@ import org.springframework.http.HttpHeaders;
  */
 public class RequestFactory {
 
+  private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(RequestFactory.class);
+
   private final SchemaCompiler schemas;
   private final JsonComposer composer;
 
@@ -36,6 +38,11 @@ public class RequestFactory {
   /** @throws ConnectorError {@link ConnectorError#REQUEST_INVALID} when params / body break their schema */
   public HttpRequest create(RestCall call, CallContext context) {
     List<JsonNode> sources = call.sources().stream().map(composer::toJson).toList();
+    if (!sources.isEmpty()) {
+      JsonNode merged = composer.merge(sources);
+      LOG.info("Merge: {} source(s) -> {}", sources.size(), describe(merged));
+      LOG.debug("Merge result: {}", merged);
+    }
     HttpRequestParams params = params(call, sources, context);
     Map<String, String> headers = new HashMap<>(call.headers());
     headers.putAll(params.headers());
@@ -53,16 +60,21 @@ public class RequestFactory {
     }
     CompiledSchema schema = compile(schemas, call.paramsSchema(), SchemaUse.PARAMS, "paramsSchema", context);
     JsonNode shaped = build(schema, sources, context::evaluate, name -> context.variable(name).orElse(null), "Request params");
-    return HttpRequestParams.from(schema.node(), shaped);
+    HttpRequestParams params = HttpRequestParams.from(schema.node(), shaped);
+    LOG.info("Params: path {} query {} headers {}", params.path().keySet(), params.query().keySet(), params.headers().keySet());
+    return params;
   }
 
   private String body(RestCall call, List<JsonNode> sources, CallContext context) {
     if (call.bodySchema() != null) {
       CompiledSchema schema = compile(schemas, call.bodySchema(), SchemaUse.REQUEST, "bodySchema", context);
-      return build(schema, sources, context::evaluate, null, "Request body").toString();
+      JsonNode body = build(schema, sources, context::evaluate, null, "Request body");
+      LOG.info("Body: built by bodySchema -> {}", describe(body));
+      return body.toString();
     }
     if (call.sourcesAsBody()) {
       JsonNode merged = composer.merge(sources);
+      LOG.info("Body: no bodySchema, sending the merged sources -> {}", describe(merged));
       return merged.isMissingNode() ? null : merged.toString();
     }
     return null;
@@ -75,6 +87,7 @@ public class RequestFactory {
       schemas.validate(schema, shaped, what);
       return shaped;
     } catch (SchemaViolationException e) {
+      LOG.warn("{} rejected, not sent: {}", what, e.getMessage());
       throw new ConnectorError(ConnectorError.REQUEST_INVALID, e.getMessage(), null, e);
     }
   }
@@ -87,11 +100,24 @@ public class RequestFactory {
     }
   }
 
+  /** Shape of a JSON value for the logs, without its values: {@code object {customerId, name, contact}}. */
+  public static String describe(JsonNode json) {
+    if (json == null || json.isMissingNode()) return "nothing";
+    if (json.isObject()) {
+      List<String> keys = new java.util.ArrayList<>();
+      json.fieldNames().forEachRemaining(keys::add);
+      return "object {" + String.join(", ", keys) + "}";
+    }
+    if (json.isArray()) return "array [" + json.size() + "]";
+    return json.getNodeType().name().toLowerCase();
+  }
+
   /** Compiles a pasted schema; a broken one is a modelling mistake (exception, not a BPMN error). */
   public static CompiledSchema compile(SchemaCompiler schemas, String text, SchemaUse use, String input, CallContext context) {
     try {
       return schemas.compile(text, use);
     } catch (IllegalArgumentException e) {
+      LOG.error("Input '{}' is not a usable schema: {}", input, e.getMessage());
       throw new RestConnectorException("Input '" + input + "' on " + context.location() + ": " + e.getMessage(), e);
     }
   }

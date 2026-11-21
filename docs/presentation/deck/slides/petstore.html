@@ -1,0 +1,11 @@
+<section id="petstore" class="alt">
+<p class="eyebrow">VERIFIED ON A REAL API · SWAGGER PETSTORE</p>
+<h2>Two inputs, one nested Pet</h2>
+<div class="row" style="gap:24px;align-items:flex-start">
+<div class="col in" style="--i:0"><p class="codelabel">input 1 · inventory</p><p class="code">{"id": "10",<br>&#160;"name": "doggie",<br>&#160;"category": {"id": 1,<br>&#160;&#160;<span class="c">"legacyCode": "D1"</span>},<br>&#160;"photoUrls": ["1.png"],<br>&#160;<span class="c">"internalId": "x-99"</span>}</p></div>
+<div class="col in" style="--i:1"><p class="codelabel">input 2 · catalogue</p><p class="code">{"category":<br>&#160;&#160;{"name": "Dogs"},<br>&#160;"tags": [{"id": 7,<br>&#160;&#160;"name": "friendly",<br>&#160;&#160;<span class="c">"color": "blue"</span>}],<br>&#160;"status": "available",<br>&#160;<span class="c">"_links": {…}</span>}</p></div>
+<div class="col in" style="--i:2"><p class="codelabel">→ body, valid Pet</p><p class="code">{<span class="k">"id": 10</span>,<br>&#160;"name": "doggie",<br>&#160;"category": {"id": 1,<br>&#160;&#160;<span class="k">"name": "Dogs"</span>},<br>&#160;"photoUrls": ["1.png"],<br>&#160;"tags": [{"id": 7,<br>&#160;&#160;"name": "friendly"}],<br>&#160;"status": "available"}</p></div>
+</div>
+<p class="small" style="margin-top:32px">Unmodified <span class="mono">petstore3.swagger.io</span> (OpenAPI 3.0.4) and <span class="mono">petstore.swagger.io/v2</span> (Swagger 2.0), referenced by component and by <span class="mono">POST /pet</span>: 12 cases, plus a BPMN task with the whole 17 KB document. Broken values are reported by path, e.g. <span class="mono">/tags/0/id</span>.</p>
+<aside>Pet has a nested object, category, and an array of nested objects, tags, both by $ref. The two inputs merge at every level: category gets its id from the first input and its name from the second. Grey fields are not in the schema and are not sent; "10" is coerced to the declared integer. The documents are in src/test/resources/openapi under their Apache 2.0 licence.</aside>
+</section>

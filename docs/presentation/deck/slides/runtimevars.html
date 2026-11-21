@@ -1,0 +1,15 @@
+<section id="runtimevars" class="alt">
+<p class="eyebrow">THE RUN · 5 · RUNTIME VARIABLES</p>
+<h2>How the variables look at runtime</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<div class="col in" style="--i:0">
+<img src="/_blob/e9b6b1aee9d0ae7e2f50fa3b5419b32c" alt="Cockpit Variables tab with 9 variables: accessToken String, account Json, address Json, apiBaseUrl String, contact Json with value {&quot;customer&quot;:{&quot;email&quot;:&quot;noa.levi@ex…, customerId Integer 501, initiator String demo, loyalty Json, profile Json" style="width:1100px;height:522px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<p class="small" style="margin-top:20px">4 start variables (String, Integer) + 5 GET results of type <span class="mono">Json</span>: the value is visible right in the table.</p>
+</div>
+<div class="col in" style="--i:1">
+<img src="/_blob/c7ad9722270fe65bb965917521172361" alt="Inspect contact variable: value {&quot;customer&quot;:{&quot;email&quot;:&quot;noa.levi@example.com&quot;,&quot;phone&quot;:&quot;+972-50-555-0101&quot;},&quot;_links&quot;:{&quot;self&quot;:&quot;/api/customers/501/contact&quot;}}" style="width:420px;height:318px;object-fit:contain;border:2px solid #D9D3C6;border-radius:12px;background:#FFFFFF">
+<p class="small" style="margin-top:20px">Opening <span class="mono">contact</span>: the full GET response, exactly as received (<span class="mono">_links</span> included).</p>
+</div>
+</div>
+<aside>The GET results are stored exactly as received, noise included; shaping happens only when a schema builds a request. After the POST, snapshot and postStatus are added, and when the instance completes all of these runtime variables are deleted and none is in history (history level activity).</aside>
+</section>

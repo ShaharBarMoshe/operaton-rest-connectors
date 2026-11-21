@@ -1,0 +1,13 @@
+<section id="pasteexample">
+<p class="eyebrow">EXAMPLE · THE POST’S BODY SCHEMA</p>
+<h2>Pasted unchanged, plus a few lines</h2>
+<div class="row" style="gap:40px;align-items:flex-start">
+<p class="code in" style="--i:0;flex:1.25"><span class="k">$ref: '#/components/schemas/CustomerSnapshot'</span><br>components:<br>&#160;schemas:<br>&#160;&#160;CustomerSnapshot:<br>&#160;&#160;&#160;type: object<br>&#160;&#160;&#160;properties:<br>&#160;&#160;&#160;&#160;id: {type: string, readOnly: true}<br>&#160;&#160;&#160;&#160;customerId:<br>&#160;&#160;&#160;&#160;&#160;type: integer<br>&#160;&#160;&#160;&#160;&#160;<span class="k">x-source: /customer/id</span><br>&#160;&#160;&#160;&#160;name: …<br>&#160;&#160;&#160;&#160;&#160;first: {type: string, <span class="k">x-source: /customer/firstName</span>}<br>&#160;&#160;&#160;&#160;snapshotBy:<br>&#160;&#160;&#160;&#160;&#160;<span class="k">x-expression: execution.getVariable('initiator')</span></p>
+<div class="col" style="flex:0.75">
+<div class="card in" style="--i:1"><p class="tag">$ref line</p><p class="body">Names the schema to send among the pasted components.</p></div>
+<div class="card in" style="--i:2;margin-top:20px"><p class="tag">x-source · x-expression</p><p class="body">Only where our data is named differently from the service’s.</p></div>
+<div class="card in" style="--i:3;margin-top:20px"><p class="tag">readOnly id</p><p class="body">Not sent in the POST; required in the response, which pastes the same schema unchanged.</p></div>
+</div>
+</div>
+<aside>Shortened from customer-snapshot.bpmn. The service's document is mock/openapi/customer-api.yaml, served by the mock as GET /openapi.yaml. Orange marks the only lines added to the copy. The response schema field holds the same paste without the additions, so a response without an id like s-1 ends in RESPONSE_INVALID.</aside>
+</section>

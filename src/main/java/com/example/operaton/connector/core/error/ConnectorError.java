@@ -13,11 +13,29 @@ public class ConnectorError extends RuntimeException {
 
   private final String code;
   private final Integer status;
+  private final java.net.URI uri;
 
   public ConnectorError(String code, String message, Integer status, Throwable cause) {
+    this(code, message, status, null, cause);
+  }
+
+  private ConnectorError(String code, String message, Integer status, java.net.URI uri, Throwable cause) {
     super(message, cause);
     this.code = code;
     this.status = status;
+    this.uri = uri;
+  }
+
+  /** The same error, knowing the URL that was called. */
+  public ConnectorError at(java.net.URI calledUri) {
+    ConnectorError e = new ConnectorError(code, getMessage(), status, calledUri, getCause());
+    e.setStackTrace(getStackTrace());
+    return e;
+  }
+
+  /** The URL that was called, or null when the request was never built (REQUEST_INVALID). */
+  public java.net.URI uri() {
+    return uri;
   }
 
   public static ConnectorError http(int status, String body) {
